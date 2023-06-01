@@ -3,7 +3,7 @@
     "path": "~/Desktop/UNIVERSITA/Magistrale/SL/HW2/SL_HW2/fMRI/andrea.Rmd",
     "project_path": "andrea.Rmd",
     "type": "r_markdown",
-    "hash": "2331472038",
+    "hash": "0",
     "contents": "",
     "dirty": false,
     "created": 1685626646099.0,
@@ -12,16 +12,21 @@
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "43,29",
-        "scrollLine": "38",
-        "last_setup_crc32": "4d620b86bb338d19"
+        "cursorPosition": "13,7",
+        "scrollLine": "0",
+        "last_setup_crc32": "4d620b86bb338d19",
+        "rmdVisualMode": "false",
+        "rmdVisualWrapConfigured": "true",
+        "docOutlineVisible": "1",
+        "rmdVisualCollapsedChunks": "",
+        "rmdVisualModeLocation": "1062:1204.5"
     },
     "folds": "",
-    "lastKnownWriteTime": 1685631595,
+    "lastKnownWriteTime": 1685632968,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1685631595331,
+    "last_content_update": 1685632968651,
     "read_only": false,
     "read_only_alternatives": []
 }

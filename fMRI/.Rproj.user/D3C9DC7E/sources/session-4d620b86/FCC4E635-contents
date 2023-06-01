@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Carico i dati
+#### Carico i dati
 
 ```{r }
 
@@ -22,6 +22,14 @@ train$sex = ifelse(train$sex=="male", 1, 0)
 test$sex = ifelse(test$sex=="male", 1, 0)
 
 ```
+
+#### Creo il nuovo train dataset
+
+Statistiche usate per accorpare le serie temporali di ogni ROI:
+
+-   media
+
+-   standard deviation
 
 ```{r }
 
@@ -49,9 +57,48 @@ train_new <- cbind(train[, 1:4], train_partial)
 
 ```
 
+#### Divido il dataset di train in due parti
 
 ```{r }
 
-idx <- sample()
+N <- nrow(train)
+n1 <- N/2
+idx <- sample(1:N, n1, replace=F)
+train_new_n1 <- train_new[idx, ]
+train_new_n2 <- train_new[-idx, ]
+
+```
+
+#### Creo il nuovo test dataset
+
+Statistiche usate per accorpare le serie temporali di ogni ROI:
+
+-   media
+
+-   standard deviation
+
+```{r }
+
+N_ROIs <- 116
+ROI_length <- 115
+
+test_partial <- data.frame(matrix(ncol=N_ROIs*2, nrow=nrow(test)))
+col_names <- c(paste0("mean_ROI_", 1:N_ROIs), paste0("sd_ROI_", 1:N_ROIs))
+colnames(test_partial) <- col_names
+
+start <- 4
+
+for (i in 1:(N_ROIs)){
+  
+  sub_set <- test[, start:(start+ROI_length-1)]
+  ROIs_mean <- apply(sub_set, MARGIN=1, FUN=mean)
+  ROIs_sd   <- apply(sub_set, MARGIN=1, FUN=sd)
+  test_partial[, i] <- ROIs_mean
+  test_partial[, i+N_ROIs] <- ROIs_sd
+  start <- start + ROI_length
+  
+}
+
+test_new <- cbind(test[, 1:3], test_partial)
 
 ```
