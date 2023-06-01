@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r }
 
+load("Data/coordinates.RData")
 train <- read.csv("Data/train_hw03.csv")
 test  <- read.csv("Data/test_hw03.csv")
 
@@ -21,7 +22,188 @@ train$sex = ifelse(train$sex=="male", 1, 0)
 
 test$sex = ifelse(test$sex=="male", 1, 0)
 
+coordinates <- aal116coordinates[, 2:3]
+
+N_ROIs <- 116
+ROI_length <- 115
+
 ```
+
+#### Simulazione grafica di una serie temporale
+
+```{r }
+
+# Install and load the required packages
+library(ggplot2)
+library(gganimate)
+library(grid)
+library(jpeg)
+
+
+subset_td  <- train[train$y == 0, 5:ncol(train)]
+subset_asd <- train[train$y == 1, 5:ncol(train)]
+
+# Calculate the mean over the rows of each column (except class column)
+mean_td_subject  <- data.frame(colMeans(subset_td))
+mean_asd_subject <- data.frame(colMeans(subset_asd))
+
+df_td  <- data.frame(cbind(x=rep(coordinates$x, each=ROI_length), y=rep(coordinates$y, each=ROI_length), 
+                    values=mean_td_subject[, 1], time_step=rep(1:ROI_length, N_ROIs)))
+df_asd <- data.frame(cbind(x=rep(coordinates$x, each=ROI_length), y=rep(coordinates$y, each=ROI_length), 
+                    values=mean_asd_subject[, 1], time_step=rep(1:ROI_length, N_ROIs)))
+
+```
+
+Grafico td:
+
+<div style="text-align: center;">
+
+```{r, echo=FALSE, out.width='.49\\linewidth', fig.width=3, fig.height=3, fig.show='hold'}
+
+dec_factor <- 1.65
+max_x <- max(coordinates$x) * dec_factor
+min_x <- min(coordinates$x) * dec_factor
+max_y <- max(coordinates$y) * dec_factor
+min_y <- min(coordinates$y) * (dec_factor-0.35)
+
+# Path to the image file
+image_path <- "Data/td.jpg"
+
+# Read the JPEG image
+image_data <- readJPEG(image_path)
+
+# Plot the animated points with the image as background
+p <- ggplot(df_td, aes(x=x, y=y-10)) +
+  annotation_custom(
+    rasterGrob(image_data, width=unit(1, "npc"), height=unit(1, "npc")),
+    xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf
+  ) +
+  geom_point(aes(size=abs(values), alpha=abs(values)), color="chartreuse", shape=15) +
+  labs(x=NULL, y=NULL) +
+  theme_void() +
+  xlim(min_x, max_x) +
+  ylim(min_y, max_y) +
+  theme(legend.position="none")
+
+# Create the animated plot
+animated_plot <- p +
+  transition_time(time_step) +
+  ease_aes("linear")
+
+# Render and play the animation
+animate(animated_plot, width=300, height=300)
+
+
+
+# Path to the image file
+image_path <- "Data/asd.jpg"
+
+# Read the JPEG image
+image_data <- readJPEG(image_path)
+
+# Plot the animated points with the image as background
+p <- ggplot(df_asd, aes(x=x, y=y-10)) +
+  annotation_custom(
+    rasterGrob(image_data, width=unit(1, "npc"), height=unit(1, "npc")),
+    xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf
+  ) +
+  geom_point(aes(size=abs(values), alpha=abs(values)), color="chartreuse", shape = 15) +
+  labs(x=NULL, y=NULL) +
+  theme_void() +
+  xlim(min_x, max_x) +
+  ylim(min_y, max_y) +
+  theme(legend.position="none")
+
+# Create the animated plot
+animated_plot <- p +
+  transition_time(time_step) +
+  ease_aes("linear")
+
+# Render and play the animation
+animate(animated_plot, width=300, height=300)
+
+```
+
+</div>
+
+
+```{r , eval=FALSE}
+
+dec_factor <- 1.65
+max_x <- max(coordinates$x) * dec_factor
+min_x <- min(coordinates$x) * dec_factor
+max_y <- max(coordinates$y) * dec_factor
+min_y <- min(coordinates$y) * (dec_factor-0.35)
+
+# Path to the image file
+image_path <- "Data/td.jpg"
+
+# Read the JPEG image
+image_data <- readJPEG(image_path)
+
+# Plot the animated points with the image as background
+p <- ggplot(df_td, aes(x=x, y=y-10)) +
+  annotation_custom(
+    rasterGrob(image_data, width=unit(1, "npc"), height=unit(1, "npc")),
+    xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf
+  ) +
+  geom_point(aes(size=abs(values), alpha=abs(values)), color="chartreuse", shape=15) +
+  labs(x=NULL, y=NULL) +
+  theme_void() +
+  xlim(min_x, max_x) +
+  ylim(min_y, max_y) +
+  theme(legend.position="none")
+
+# Create the animated plot
+animated_plot <- p +
+  transition_time(time_step) +
+  ease_aes("linear")
+
+# Render and play the animation
+animate(animated_plot)
+
+```
+
+Grafico asd:
+
+```{r , eval=FALSE}
+
+dec_factor <- 1.65
+max_x <- max(coordinates$x) * dec_factor
+min_x <- min(coordinates$x) * dec_factor
+max_y <- max(coordinates$y) * dec_factor
+min_y <- min(coordinates$y) * (dec_factor-0.35)
+
+# Path to the image file
+image_path <- "Data/asd.jpg"
+
+# Read the JPEG image
+image_data <- readJPEG(image_path)
+
+# Plot the animated points with the image as background
+p <- ggplot(df_asd, aes(x=x, y=y-10)) +
+  annotation_custom(
+    rasterGrob(image_data, width=unit(1, "npc"), height=unit(1, "npc")),
+    xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf
+  ) +
+  geom_point(aes(size=abs(values), alpha=abs(values)), color="chartreuse", shape = 15) +
+  labs(x=NULL, y=NULL) +
+  theme_void() +
+  xlim(min_x, max_x) +
+  ylim(min_y, max_y) +
+  theme(legend.position="none")
+
+# Create the animated plot
+animated_plot <- p +
+  transition_time(time_step) +
+  ease_aes("linear")
+
+# Render and play the animation
+animate(animated_plot)
+
+
+```
+
 
 #### Creo il nuovo train dataset
 
@@ -31,10 +213,7 @@ Statistiche usate per accorpare le serie temporali di ogni ROI:
 
 -   standard deviation
 
-```{r }
-
-N_ROIs <- 116
-ROI_length <- 115
+```{r , eval=FALSE}
 
 train_partial <- data.frame(matrix(ncol=N_ROIs*2, nrow=nrow(train)))
 col_names <- c(paste0("mean_ROI_", 1:N_ROIs), paste0("sd_ROI_", 1:N_ROIs))
@@ -42,7 +221,7 @@ colnames(train_partial) <- col_names
 
 start <- 5
 
-for (i in 1:(N_ROIs)){
+for (i in 1:N_ROIs){
   
   sub_set <- train[, start:(start+ROI_length-1)]
   ROIs_mean <- apply(sub_set, MARGIN=1, FUN=mean)
@@ -59,7 +238,7 @@ train_new <- cbind(train[, 1:4], train_partial)
 
 #### Divido il dataset di train in due parti
 
-```{r }
+```{r , eval=FALSE}
 
 N <- nrow(train)
 n1 <- N/2
@@ -77,7 +256,7 @@ Statistiche usate per accorpare le serie temporali di ogni ROI:
 
 -   standard deviation
 
-```{r }
+```{r , eval=FALSE}
 
 N_ROIs <- 116
 ROI_length <- 115
@@ -88,7 +267,7 @@ colnames(test_partial) <- col_names
 
 start <- 4
 
-for (i in 1:(N_ROIs)){
+for (i in 1:N_ROIs){
   
   sub_set <- test[, start:(start+ROI_length-1)]
   ROIs_mean <- apply(sub_set, MARGIN=1, FUN=mean)
