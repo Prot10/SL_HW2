@@ -1,0 +1,1249 @@
+---
+title: "SDS - Homework 2"
+author: "Leoni, Sciocchetti, Montillo"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r include=FALSE}
+load("hw2_data.RData")
+library(igraph)
+```
+
+# Abstract
+
+In this job we want to study the relationship between brain ROIs (regions of interest), particularly the main differences and analogies between the way in which the brain of an autistic patient and a non-autistic one work. Our conclusions will be based on the study of the correlation of the ROIs' activation simultaneously.
+
+# Dataset: features, pre-processing and pooling
+
+We have two dataset: the first contains the time series of MRIs belonging to 12 autistic patients and the second contains time series, with the same size of the other category, of MRIs belong to 12 non-autistic patients. Both of the dataset, for normal and autistic patients, were extracted from the Autism Brain Imagine Data Exchange project, particularly were released by two different laboratories: Caltech and Trynity. Each time series contains 145 observations of the 116 ROI of each patient.
+
+The two labs have used different scales in data gathering: it could be a problem for our analyses, because we have to pool these data to obtain only two dataframe, one for each kind of patient.
+
+All the more so, our first pooling method is the mean across subject: we extract the mean of the 12 values for each ROIs and for each time series, so we obtain a dataframe with 145 rows and 116 coloumns. Without standardization some data could be undervalued.
+
+We have tried to normalize the data in some way:
+
+1.  Standardization for subject: taken a patient, we have subtracted each ROI's element for the mean of that ROI and divided by its standard deviation.
+
+```{r}
+
+mat1aut  <- matrix(0,145,116)
+
+        
+        for (i in asd_sel[1:12]){                         # for each autistic patient
+          menomean <- as.matrix(i)-colMeans(as.matrix(i)) # subtract the ROI's means
+          colvar <- apply(as.matrix(i),2,sd)              # calculate sd ROI
+          mat1aut <- mat1aut + menomean/colvar            # standardization and sum
+        }
+        mat1aut <- mat1aut/12                             # divide for number of patients
+        
+mat1nor <- matrix(0,145,116)
+        
+        for (i in td_sel[1:12]){                          # for each non-autistic patient
+          menomean <- as.matrix(i)-colMeans(as.matrix(i)) # subtract the ROI's means
+          colvar <- apply(as.matrix(i),2,sd)              # calculate sd ROI
+          mat1nor <- mat1nor + menomean/colvar            # standardization and sum
+        }
+        mat1nor <- mat1nor/12                             # divide for number of patients
+
+
+```
+
+2.  Standardization for laboratory: for each ROI we have calculated the average and the standard deviation of all the data coming from each lab, and we have used these values for the patient standardization, depending on the laboratory of origin. This method limits the labs effect, normalizing data: for that reason we think this method could be the better to use in our analyses.
+
+```{r}
+####
+df_td_cal  <- do.call(rbind,td_sel[1:2])         # stacking the data belong to the same type 
+                                                 # of patient for each lab
+df_asd_try <- do.call(rbind,asd_sel[2:12])
+df_td_try  <- do.call(rbind,td_sel[3:12])
+
+####
+mdautcal  <- colMeans(asd_sel$caltech_0051472)   # calculate ROI's means and standard deviations
+sdautcal  <- apply(asd_sel$caltech_0051472,2,sd) # for each type of patient and each lab
+
+mdauttry  <- colMeans(df_asd_try) 
+sdauttry  <- apply(df_asd_try,2,sd)
+
+mdnorcal  <- colMeans(df_td_cal)
+sdnorcal  <- apply(df_td_cal,2,sd)
+
+mdnortry  <- colMeans(df_td_try)
+sdnortry  <- apply(df_td_try,2,sd)
+
+####
+mat2aut <- matrix(0,145,116)                        
+matryaut<- matrix(0,145,116)
+
+for (i in asd_sel[2:12]){                        # standardize each autistic-Trynity and sum 
+  mat2aut <- mat2aut + (i - mdauttry)/sdauttry
+}
+
+matryaut<- mat2aut/11 # only Trynity
+
+mat2aut <- mat2aut +                             # standardize each autistic-Calctech and sum 
+  (asd_sel$caltech_0051472 - mdautcal)/sdautcal
+
+mat2aut <- mat2aut/12                            # divide and calculate the mean
+
+####
+mat2nor <- matrix(0,145,116)
+matrynor<- matrix(0,145,116)
+
+for (i in td_sel[3:12]){                         # standardize each non-autistic-Trynity and sum
+  mat2nor <- mat2nor + (i - mdnortry)/sdnortry
+}
+
+matrynor<- mat2nor/10 # only Trynity
+
+for (i in td_sel[1:2]){                          # standardize each non-autistic-Calctech and sum 
+  mat2nor <- mat2nor + (i - mdnorcal)/sdnorcal
+}
+
+mat2nor <- mat2nor/12                            # divide and calculate the mean   
+
+```
+
+To see as well these methods work, we have tried other two data pooling:
+
+3.  Mean without standardization
+         
+```{r}
+####
+mat3aut <- matrix(0,145,116)
+
+for (i in asd_sel[1:12]){     # sum autistic data 
+  mat3aut <- mat3aut + i
+}
+
+mat3aut <- mat3aut/12         # divide and calculate the mean
+         
+####
+mat3nor <- matrix(0,145,116)
+
+for (i in td_sel[1:12]){      # sum non-autistic data 
+ mat3nor <- mat3nor + i
+}
+
+mat3nor <- mat3nor/12         # divide and calculate the mean
+```
+
+
+4.  Stacking the datasets: build a data.frame stacking data from patients of the same type.
+
+```{r}
+####
+mat4aut <- do.call(rbind,asd_sel)  # stacking the autistic data 
+mat4nor <- do.call(rbind,td_sel)   # stacking the non-autistic data
+```
+
+
+# Pearson correlation and estimate graphs
+
+As requested, we have to calculate the correlation for each ROI and each patients and set the threshold equal to a percentile of these values.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+####
+cal_cor       <- function(d) d[lower.tri(d)]   # function that unlist the under diagonal values
+
+corasd        <- lapply(asd_sel, cor)          # calculate the corr. for each autistic patient
+cortrueasd    <- lapply(corasd,cal_cor)        # apply cal_cor to each autistic correlation matrix
+
+cortd         <- lapply(td_sel,cor)            # calculate the corr. for each non-autistic patient
+cortruetd     <- lapply(cortd,cal_cor)         # apply cal_cor to each non-autistic correlation matrix
+
+varit     <- round(quantile(abs(c(unlist(cortrueasd),unlist(cortruetd))),  # calculate quantile 
+                            c(.3,.4,.5,.6,.7,.75,.8,.9,.95,0.99)),2)
+varit
+```
+
+We think this values can be useful even if the correlations are quit low (the 99 percentile is under 0.70). But we will use these values to see what changes even with low thresholds.
+
+# Considerations on standardizations
+
+We will do some trials and see what happens, but before we start let's try to give some considerations: the first method (standardization for subject) is interesting but maybe it could affect the "particularity" of the different observations, in some way, make uniform rather than normalize (I know, I know... they seem the same thing, I will try to explain myself better): it could be counterproductive, in fact we think that the different labs have used the same approaches and the same mechanical tools, but different scale gathering the data, so it makes sense to normalize with the aggregate mean and variance, also considering that all the data belong to the same ROI for each type of patient as observations of the same random variable.
+
+About the other methods mentioned, let's say something about their inconsistencies: the third method briefly underconsider the data belong to Caltech patients that have a distribution with a very small variance and a mean too close the zero, unlike the Trynity patients; the problem in the forth method is that 1740 observations from the same patient is different from 145 observations for each of 12 patients, especially for our use of the Z-transform calculating the confidence interval: with so many observations this tool gives very narrow intervals, but it depends on our forcing.
+
+Some words about our pooling method, the mean across subject: the observations are independent as described, furthermore we are considering (with a little stretch) that each observation is independent in the time for each patient, so this statistic might "flatten" our final dataframes, but we have few observations so it could be a good way to pool the data (actually we can't find any other methods, yes there would be the median but basically it implies the same "theoretical" problems).
+
+# Proves
+
+Sooo, let's try (and error).
+
+### Standardization for subject
+
+```{r echo=TRUE}
+bonf_coef <- choose(116,2)            # calculate Bonf. coefficient
+
+aut1_tres <- rep(NA,10)
+nor1_tres <- rep(NA,10)
+diff1     <- rep(NA,10)
+diff1_tres<- rep(NA,10)
+df1       <- rep(NA,10)
+
+for (t in 1:10){                      # for on the quantiles found
+
+
+cor1aut <- matrix(0,116,116)
+cor1nor <- matrix(0,116,116)
+
+  for (i in 1:116){                   # for to calculate the correlations and confidence interval
+      for (j in i:116){
+        
+        # calculate the correlation between i-th and j-th ROIs and the confidence interval
+        interaut <- as.numeric(cor.test(mat1aut[,i],mat1aut[,j],conf.level = 1-0.05/bonf_coef)$conf.int)
+        # minimum of interval has to be > thres and verify that interval doesn't contain the zero
+        if ( min(abs(interaut))>varit[t] & interaut[1]*interaut[2]>0){
+          cor1aut[i,j]=1
+          cor1aut[j,i]=1
+        }
+          
+        internor <- as.numeric(cor.test(mat1nor[,i],mat1nor[,j],conf.level = 1-0.05/bonf_coef)$conf.int)
+        if ( min(abs(internor))>varit[t] & internor[1]*internor[2]>0 ){
+          cor1nor[i,j]=1
+          cor1nor[j,i]=1
+          
+        }
+      }
+    }
+  
+  
+  aut1_tres[t] <- (sum(cor1aut)-116)/2                  # how many autistic edges
+  nor1_tres[t] <- (sum(cor1nor)-116)/2                  # how many non-autistic edges
+  
+  prova        <- cor1nor + cor1aut
+  diff1[t]     <- (sum(prova==1))/2                     # how many different edges
+  diff1_tres[t]<- diff1[t]/(aut1_tres[t]+nor1_tres[t])  # ratio between diff. edges and total edges found
+  df1[t]       <- diff1[t]/((sum(prova==2)-116)/2)      # retio between diff. edges and common edges
+
+}
+cbind(varit,aut1_tres,nor1_tres,diff1,diff1_tres,df1)
+```
+
+From now on we won't leave superfluous code exposed, it could be found on the script
+
+### Standardization for labs
+
+```{r echo=FALSE}
+
+aut2_tres <- rep(NA,10)
+nor2_tres <- rep(NA,10)
+diff2     <- rep(NA,10)
+diff2_tres<- rep(NA,10)
+df2       <- rep(NA,10)
+  
+for (t in 1:10){                     # for on the quantiles found
+
+
+cor2aut <- matrix(0,116,116)
+cor2nor <- matrix(0,116,116)
+
+  for (i in 1:116){                  # for to calculate the correlations and confidence interval
+      for (j in i:116){
+        
+        # calculate the correlation between i-th and j-th ROIs and the confidence interval
+        interaut <- as.numeric(cor.test(mat2aut[,i],mat2aut[,j],conf.level = 1-0.05/bonf_coef)$conf.int)
+        # minimum of interval has to be > thres and verify that interval doesn't contain the zero
+        if ( min(abs(interaut))>varit[t] & interaut[1]*interaut[2]>0){
+          cor2aut[i,j]=1
+          cor2aut[j,i]=1
+        }
+          
+        internor <- as.numeric(cor.test(mat2nor[,i],mat2nor[,j],conf.level = 1-0.05/bonf_coef)$conf.int)
+        if ( min(abs(internor))>varit[t] & internor[1]*internor[2]>0 ){
+          cor2nor[i,j]=1
+          cor2nor[j,i]=1
+          
+        }
+      }
+    }
+  
+  
+  aut2_tres[t] <- (sum(cor2aut)-116)/2                 # how many autistic edges
+  nor2_tres[t] <- (sum(cor2nor)-116)/2                 # how many non-autistic edges
+  
+  prova        <- cor2nor + cor2aut                  
+  diff2[t]     <- (sum(prova==1))/2                    # how many different edges
+  diff2_tres[t]<- diff2[t]/(aut2_tres[t]+nor2_tres[t]) # ratio between diff. edges and total edges found
+  df2[t]       <- diff2[t]/((sum(prova==2)-116)/2)     # ratio between diff. edges and common edges
+
+
+}
+cbind(varit,aut2_tres,nor2_tres,diff2,diff2_tres,df2)
+
+```
+
+Now we can say that:
+
+1. For each threshold, we find more links between the ROIs with the standardization for lab then for subject, both for the autistic patients and non-autistic;
+
+2. also the different edges are more with the second method, obviously it depends on the total edges found, so we try two statistics: 
+
+* diff2_tres, i.e. different edges divided by the total edges found;
+
+* diff, i.e. different edges divided by number of edges found in both the type of patient.
+
+This two statistics are quite similar for the two methods, so we will take the method which found more connections in total with a threshold high enough and following what we have said in the previous considerations, i.e. the second.
+
+
+### Only the Trynity
+
+But... looking at the data we find a lot of Trynity patients and very few Calctech patients so we can try to throw this data away and take only the firsts to see how is to see how much the seconds affect the results.
+
+So we can try to pool data standardizing (for lab) only the Trynity dataset.
+
+```{r echo=FALSE}
+# it has the same comments then the previous
+auttry_tres <- rep(NA,10)
+nortry_tres <- rep(NA,10)
+difftry     <- rep(NA,10)
+difftry_tres<- rep(NA,10)
+dftry       <- rep(NA,10)
+  
+for (t in 1:10){
+
+
+cortryaut <- matrix(0,116,116)
+cortrynor <- matrix(0,116,116)
+
+  for (i in 1:116){
+      for (j in i:116){
+        
+        interaut <- as.numeric(cor.test(matryaut[,i],matryaut[,j],conf.level = 1-0.05/bonf_coef)$conf.int)
+        if ( min(abs(interaut))>varit[t] & interaut[1]*interaut[2]>0){
+          cortryaut[i,j]=1
+          cortryaut[j,i]=1
+        }
+          
+        internor <- as.numeric(cor.test(matrynor[,i],matrynor[,j],conf.level = 1-0.05/bonf_coef)$conf.int)
+        if ( min(abs(internor))>varit[t] & internor[1]*internor[2]>0 ){
+          cortrynor[i,j]=1
+          cortrynor[j,i]=1
+          
+        }
+      }
+    }
+  
+  
+  auttry_tres[t] <- (sum(cortryaut)-116)/2
+  nortry_tres[t] <- (sum(cortrynor)-116)/2
+  
+  prova          <- cortrynor + cortryaut
+  difftry[t]     <- (sum(prova==1))/2
+  difftry_tres[t]<- difftry[t]/(auttry_tres[t]+nortry_tres[t])
+  dftry[t]       <- difftry[t]/((sum(prova==2)-116)/2)
+
+
+}
+cbind(varit,auttry_tres,nortry_tres,difftry,difftry_tres,dftry)
+
+```
+
+The results are quite similar to the previous prove, this method find more non-autistic patient e less autistic but more or less doesn't change the situation.
+
+
+### Without standardization
+
+Out third pre-processing method is... nothing. Mean of the data.
+
+```{r echo=FALSE}
+# it has the same comments then the previous
+aut3_tres <- rep(NA,10)
+nor3_tres <- rep(NA,10)
+diff3     <- rep(NA,10)
+diff3_tres<- rep(NA,10)
+df3       <- rep(NA,10)
+
+  
+for (t in 1:10){
+
+
+cor3aut <- matrix(0,116,116)
+cor3nor <- matrix(0,116,116)
+
+  for (i in 1:116){
+      for (j in i:116){
+        
+        interaut <- as.numeric(cor.test(mat3aut[,i],mat3aut[,j],conf.level = 1-0.05/bonf_coef)$conf.int)
+        if ( min(abs(interaut))>varit[t] & interaut[1]*interaut[2]>0){
+          cor3aut[i,j]=1
+          cor3aut[j,i]=1
+        }
+          
+        internor <- as.numeric(cor.test(mat3nor[,i],mat3nor[,j],conf.level = 1-0.05/bonf_coef)$conf.int)
+        if ( min(abs(internor))>varit[t] & internor[1]*internor[2]>0 ){
+          cor3nor[i,j]=1
+          cor3nor[j,i]=1
+          
+        }
+      }
+    }
+  
+  
+  aut3_tres[t] <- (sum(cor3aut)-116)/2
+  nor3_tres[t] <- (sum(cor3nor)-116)/2
+  
+  prova        <- cor3nor + cor3aut
+  diff3[t]     <- (sum(prova==1))/2
+  diff3_tres[t]<- diff3[t]/(aut3_tres[t]+nor3_tres[t])
+  df3[t]       <- diff3[t]/((sum(prova==2)-116)/2)
+
+}
+cbind(varit,aut3_tres,nor3_tres,diff3,diff3_tres,df3)
+
+```
+
+What can we say about this method? If we keep the mean without any kind of standardization, we can find a lot of edges also with high threshold. But our statistics (diff3_tres, df3) tell us that the results aren't so good: they are quite low, so there are many edges in common but we want to find a method which separates the two groups as much as possible.  
+
+### Stacking the datasets
+
+The last method we want to prove is stacking all the data belong to the same type of patient and calculate the correlations. Are we cheating?
+
+```{r echo=FALSE}
+# it has the same comments then the previous
+aut4_tres <- rep(NA,10)
+nor4_tres <- rep(NA,10)
+diff4     <- rep(NA,10)
+diff4_tres<- rep(NA,10)
+df4       <- rep(NA,10)
+
+  
+for (t in 1:10){
+
+
+cor4aut <- matrix(0,116,116)
+cor4nor <- matrix(0,116,116)
+
+  for (i in 1:116){
+      for (j in i:116){
+        
+        interaut <- as.numeric(cor.test(mat4aut[,i],mat4aut[,j],conf.level = 1-0.05/bonf_coef)$conf.int)
+        if ( min(abs(interaut))>varit[t] & interaut[1]*interaut[2]>0){
+          cor4aut[i,j]=1
+          cor4aut[j,i]=1
+        }
+          
+        internor <- as.numeric(cor.test(mat4nor[,i],mat4nor[,j],conf.level = 1-0.05/bonf_coef)$conf.int)
+        if ( min(abs(internor))>varit[t] & internor[1]*internor[2]>0 ){
+          cor4nor[i,j]=1
+          cor4nor[j,i]=1
+          
+        }
+      }
+    }
+  
+  
+  aut4_tres[t] <- (sum(cor4aut)-116)/2
+  nor4_tres[t] <- (sum(cor4nor)-116)/2
+  
+  prova        <- cor4nor + cor4aut
+  diff4[t]     <- (sum(prova==1))/2
+  diff4_tres[t]<- diff4[t]/(aut4_tres[t]+nor4_tres[t])
+  df4[t]       <- diff4[t]/((sum(prova==2)-116)/2)
+
+}
+cbind(varit,aut4_tres,nor4_tres,diff4,diff4_tres,df4)
+
+```
+
+The last method is the worst: yes, this method find a lot of edges but it's due to the Z-transform effect already mentioned. The high number of edges found don't correspond to good results in our statistics that are quite low.
+
+### Median instead mean
+
+As we have already said above, the median can be a valid choice instead of the mean, so let's try.
+
+```{r echo=TRUE}
+# because we want pool the data with the median, we have to standardize each dataset
+# and put those in a list
+
+listmataut <- list()
+
+listmataut[[1]] <- (asd_sel$caltech_0051472 - mdautcal)/sdautcal # standardize autistic Caltech and put in a list 
+
+num <- 1                            
+for (i in asd_sel[2:12]){                     # for each autistic Trynity, standardize and put in the list
+  num <- num + 1
+  listmataut[[num]] <- (i - mdauttry)/sdauttry
+}
+
+listmatnor <- list()
+
+num <- 0
+for (i in td_sel[1:2]){                       # for each non-autistic Caltech, standardize and put in the list
+  num <- num + 1
+  listmatnor[[num]] <- (i - mdnorcal)/sdnorcal
+}
+for (i in td_sel[3:12]){                      # for each non-autistic Trynity, standardize and put in the list
+  num <- num + 1
+  listmatnor[[num]] <- (i - mdnortry)/sdnortry
+}
+
+matmdnaut <- matrix(0,145,116)
+matmdnnor <- matrix(0,145,116)
+
+for (i in 1:116){
+  for(j in 1:116){                            # for each (i,j)-th element calculate the median among all the 
+                                              # elements in the lists
+    matmdnaut[i,j] <- median(c(listmataut[[1]][i,j],listmataut[[2]][i,j],listmataut[[3]][i,j],
+                               listmataut[[4]][i,j],listmataut[[5]][i,j],listmataut[[6]][i,j],
+                               listmataut[[7]][i,j],listmataut[[8]][i,j],listmataut[[9]][i,j],
+                               listmataut[[10]][i,j],listmataut[[11]][i,j],listmataut[[12]][i,j]))
+    matmdnnor[i,j] <- median(c(listmatnor[[1]][i,j],listmatnor[[2]][i,j],listmatnor[[3]][i,j],
+                               listmatnor[[4]][i,j],listmatnor[[5]][i,j],listmatnor[[6]][i,j],
+                               listmatnor[[7]][i,j],listmatnor[[8]][i,j],listmatnor[[9]][i,j],
+                               listmatnor[[10]][i,j],listmatnor[[11]][i,j],listmatnor[[12]][i,j]))
+  }
+}
+```
+
+```{r echo=FALSE}
+# it has the same comments then previous 
+autmdn_tres <- rep(NA,10)
+normdn_tres <- rep(NA,10)
+diffmdn     <- rep(NA,10)
+diffmdn_tres<- rep(NA,10)
+dfmdn       <- rep(NA,10)
+  
+for (t in 1:10){
+
+
+cormdnaut <- matrix(0,116,116)
+cormdnnor <- matrix(0,116,116)
+
+  for (i in 1:116){
+      for (j in i:116){
+        
+        interaut <- as.numeric(cor.test(matmdnaut[,i],matmdnaut[,j],conf.level = 1-0.05/bonf_coef)$conf.int)
+        if ( min(abs(interaut))>varit[t] & interaut[1]*interaut[2]>0){
+          cormdnaut[i,j]=1
+          cormdnaut[j,i]=1
+        }
+          
+        internor <- as.numeric(cor.test(matmdnnor[,i],matmdnnor[,j],conf.level = 1-0.05/bonf_coef)$conf.int)
+        if ( min(abs(internor))>varit[t] & internor[1]*internor[2]>0 ){
+          cormdnnor[i,j]=1
+          cormdnnor[j,i]=1
+          
+        }
+      }
+    }
+  
+  
+  autmdn_tres[t] <- (sum(cormdnaut)-116)/2
+  normdn_tres[t] <- (sum(cormdnnor)-116)/2
+  
+  prova          <- cormdnnor + cormdnaut
+  diffmdn[t]     <- (sum(prova==1))/2
+  diffmdn_tres[t]<- diffmdn[t]/(autmdn_tres[t]+normdn_tres[t])
+  dfmdn[t]       <- diffmdn[t]/((sum(prova==2)-116)/2)
+
+
+}
+cbind(varit,autmdn_tres,normdn_tres,diffmdn,diffmdn_tres,dfmdn)
+
+```
+
+```{r echo=TRUE}
+
+for (i in 1:116){
+  for(j in 1:116){    # calculate the median without the standardization
+                      
+    matmdnaut[i,j] <- median(c(asd_sel[[1]][[j]][i],asd_sel[[2]][[j]][i],asd_sel[[3]][[j]][i],
+                               asd_sel[[4]][[j]][i],asd_sel[[5]][[j]][i],asd_sel[[6]][[j]][i],
+                               asd_sel[[7]][[j]][i],asd_sel[[8]][[j]][i],asd_sel[[9]][[j]][i],
+                               asd_sel[[10]][[j]][i],asd_sel[[11]][[j]][i],asd_sel[[12]][[j]][i]))
+    matmdnnor[i,j] <- median(c(td_sel[[1]][[j]][i],td_sel[[2]][[j]][i],td_sel[[3]][[j]][i],
+                               td_sel[[4]][[j]][i],td_sel[[5]][[j]][i],td_sel[[6]][[j]][i],
+                               td_sel[[7]][[j]][i],td_sel[[8]][[j]][i],td_sel[[9]][[j]][i],
+                               td_sel[[10]][[j]][i],td_sel[[11]][[j]][i],td_sel[[12]][[j]][i]))
+  }
+}
+
+```
+
+
+
+```{r echo=FALSE}
+
+autmdn_tres <- rep(NA,10)
+normdn_tres <- rep(NA,10)
+diffmdn     <- rep(NA,10)
+diffmdn_tres<- rep(NA,10)
+dfmdn       <- rep(NA,10)
+  
+for (t in 1:10){
+
+
+cormdnaut <- matrix(0,116,116)
+cormdnnor <- matrix(0,116,116)
+
+  for (i in 1:116){
+      for (j in i:116){
+        
+        interaut <- as.numeric(cor.test(matmdnaut[,i],matmdnaut[,j],conf.level = 1-0.05/bonf_coef)$conf.int)
+        if ( min(abs(interaut))>varit[t] & interaut[1]*interaut[2]>0){
+          cormdnaut[i,j]=1
+          cormdnaut[j,i]=1
+        }
+          
+        internor <- as.numeric(cor.test(matmdnnor[,i],matmdnnor[,j],conf.level = 1-0.05/bonf_coef)$conf.int)
+        if ( min(abs(internor))>varit[t] & internor[1]*internor[2]>0 ){
+          cormdnnor[i,j]=1
+          cormdnnor[j,i]=1
+          
+        }
+      }
+    }
+  
+  
+  autmdn_tres[t] <- (sum(cormdnaut)-116)/2
+  normdn_tres[t] <- (sum(cormdnnor)-116)/2
+  
+  prova          <- cormdnnor + cormdnaut
+  diffmdn[t]     <- (sum(prova==1))/2
+  diffmdn_tres[t]<- diffmdn[t]/(autmdn_tres[t]+normdn_tres[t])
+  dfmdn[t]       <- diffmdn[t]/((sum(prova==2)-116)/2)
+
+
+}
+cbind(varit,autmdn_tres,normdn_tres,diffmdn,diffmdn_tres,dfmdn)
+
+```
+
+We actually expected better results: the first are the results obtained with the median by pooling the data, standardized for lab, and the second are the ones by pooling data not standardized.
+The median isn't a good way to pool these data, the results are quite unsatisfactory even with a low threshold, even if gives a good results applying our statistics.
+
+# Graphs and considerations on the results 
+
+Looking at the values obtain with the standardization for lab, we think that the optimal threshold to use is 75% percentile: it level gives the best results calculating our statistics and $p = 0.30$ it's the first level in which the correlation could make sense.
+
+```{r echo=FALSE}
+cbind(varit,aut2_tres,nor2_tres,diff2,diff2_tres,df2)
+```
+
+Let's try to say something else looking at the graphs.
+
+```{r}
+coraut <- matrix(0,116,116)
+cornor <- matrix(0,116,116)
+cordif <- matrix(0,116,116)
+corcom <- matrix(0,116,116)
+
+for (i in 1:116){
+  for (j in i:116){  # calculate the adjacency matrix with threshold = 0.30
+    
+    interaut <- (cor.test(mat2aut[,i],mat2aut[,j],conf.level = 1-0.05/bonf_coef ))
+    internor <- (cor.test(mat2nor[,i],mat2nor[,j],conf.level = 1-0.05/bonf_coef ))
+    
+    if ( min(abs(interaut$conf.int))>0.30 & interaut$conf.int[1]*interaut$conf.int[2]>0){
+      coraut[i,j] = 1
+      coraut[j,i] = 1
+    }
+    
+    if ( min(abs(internor$conf.int))>0.30 & internor$conf.int[1]*internor$conf.int[2]>0 ){
+      cornor[i,j] = 1
+      cornor[j,i] = 1
+      
+    }
+  }
+}
+
+# estimate autistic graph  
+graph_aut <-graph_from_adjacency_matrix(
+            coraut,
+            mode = "undirected",
+            diag = F,
+          )
+
+# estimate non-autistic graph
+graph_nor <-graph_from_adjacency_matrix(
+            cornor,
+            mode = "undirected",
+            diag = F,
+          )
+
+# plot non-autistic graph
+par(mfrow=c(1,2))
+
+plot(graph_nor, layout = layout.fruchterman.reingold,
+     vertex.size=4, 
+     vertex.color='black',
+     edge.color = 'purple',
+     vertex.label=NA, 
+     mode="undirected",
+     edge.width=5, 
+     main="Graph non-autistic patients")
+
+# plot autistic graph
+
+plot(graph_aut, layout = layout.fruchterman.reingold,
+     vertex.size=4, 
+     vertex.color='black',
+     edge.color = 'green', 
+     vertex.label=NA, 
+     mode="undirected",
+     edge.width=5, 
+     main="Graph autistic patients")
+
+```
+
+
+```{r}
+
+# We want to plot the two graph in the same plot with different edge colors
+
+noredg <- get.edgelist(graph_nor)  # keep non-autistic edges 
+autedg <- get.edgelist(graph_aut)  # keep autistic edges
+
+noredg <- as.data.frame(noredg)    
+autedg <- as.data.frame(autedg)
+
+noredg['color'] <- rep('purple',length(noredg)-1)   # add color to the dataframes
+autedg['color'] <- rep('green',length(autedg)-1)
+
+edge_gr <- rbind(noredg,autedg)     # stack the two lists of edges
+edge_gr <- as.data.frame(edge_gr)   
+
+# color red if the row belong to both the type of patient 
+edge_gr[duplicated(edge_gr[1:2]) | duplicated(edge_gr[1:2], fromLast=TRUE),]$color <- rep('red',sum(duplicated(edge_gr[1:2]) | duplicated(edge_gr[1:2], fromLast=TRUE)))
+
+edge_gr <- edge_gr[!duplicated(edge_gr), ]
+
+# only the nodes graph
+new_graph <- graph_from_adjacency_matrix(
+              matrix(0,116,116),
+              mode = "undirected",
+              diag = F,
+            )
+
+# add the edges
+new_graph <- add_edges(new_graph, unlist(t(edge_gr[,c(1,2)])))
+
+# plot the new_graph
+plot(new_graph, layout.kamada.kawai = layout.fruchterman.reingold,
+     vertex.size=1, 
+     vertex.color='grey',
+     vertex.label.cex=0.8,
+     vertex.label.font=2,
+     vertex.label.color='black' ,
+     edge.color=edge_gr$color, 
+     mode="undirected", 
+     edge.width=5, 
+     main="Graph union")
+
+legend("topleft",legend=c("Autistic data","Normal data","Both"),fill=c("green","purple","red"))
+
+```
+
+As we can see, our graph show that there are very few common edges, the 'red' ones; from the graph we can see some common nodes, such as 8 or the subgraph 95-109-98-111 or 81-17-41-57.
+
+### Without Bonferroni
+
+When our analyses deal with multiple testing, we have to chose a confidence level higher to obtain a good confidence interval. One way to do that is the Bonferroni-correction, that we have applied in the previous analyses. Try to remove this correction. What can happen? 
+
+```{r}
+
+coraut_nobon <- matrix(0,116,116)
+cornor_nobon <- matrix(0,116,116)
+
+for (i in 1:116){    # calculate the adjacency matrix with 
+  for (j in i:116){  # threshold = 0.30, without Bonferroni-correction
+    
+    interaut <- (cor.test(mat2aut[,i],mat2aut[,j],conf.level = 1-0.05))
+    internor <- (cor.test(mat2nor[,i],mat2nor[,j],conf.level = 1-0.05))
+    
+    if ( min(abs(interaut$conf.int))>0.30 & interaut$conf.int[1]*interaut$conf.int[2]>0){
+      coraut_nobon[i,j] = 1
+      coraut_nobon[j,i] = 1
+    }
+    
+    if ( min(abs(internor$conf.int))>0.30 & internor$conf.int[1]*internor$conf.int[2]>0 ){
+      cornor_nobon[i,j] = 1
+      cornor_nobon[j,i] = 1
+      
+    }
+  }
+}
+
+# estimate autistic graph (without Bonferroni correction)
+graph_aut_nobon <-graph_from_adjacency_matrix(
+            coraut_nobon,
+            mode = "undirected",
+            diag = F,
+          )
+
+# estimate non-autistic graph (without Bonferroni correction)
+graph_nor_nobon <-graph_from_adjacency_matrix(
+            cornor_nobon,
+            mode = "undirected",
+            diag = F,
+          )
+
+# plot graph
+par(mfrow=c(1,2))
+
+plot(graph_nor_nobon, layout = layout.fruchterman.reingold, vertex.size=4, vertex.color='black', edge.color = 'purple', vertex.label=NA, mode="undirected",edge.width=5, main="Graph non-autistic patients\n (no-Bonf)")
+
+plot(graph_aut_nobon, layout = layout.fruchterman.reingold, vertex.size=4, vertex.color='black', edge.color = 'green', vertex.label=NA, mode="undirected",edge.width=5, main="Graph autistic patients\n (no-Bonf)")
+
+```
+
+
+As we could expect there are a lot of edges. How these two graphs intersect each other?
+
+
+```{r}
+
+# We want to plot the two graph in the same plot with different edge colors
+
+noredg_nobon <- get.edgelist(graph_nor_nobon)   # keep non-autistic edges 
+autedg_nobon <- get.edgelist(graph_aut_nobon)   # keep autistic edges 
+
+noredg_nobon <- as.data.frame(noredg_nobon)
+autedg_nobon <- as.data.frame(autedg_nobon)
+
+noredg_nobon['color'] <- rep('purple',length(noredg_nobon)-1)
+autedg_nobon['color'] <- rep('green',length(autedg_nobon)-1)
+
+edge_gr_nobon <- rbind(noredg_nobon,autedg_nobon)
+edge_gr_nobon <- as.data.frame(edge_gr_nobon)
+
+edge_gr_nobon[duplicated(edge_gr_nobon[1:2]) | duplicated(edge_gr_nobon[1:2], fromLast=TRUE),]$color <- rep('red',sum(duplicated(edge_gr_nobon[1:2]) | duplicated(edge_gr_nobon[1:2], fromLast=TRUE)))
+
+new_graph_nobon <- graph_from_adjacency_matrix(
+              matrix(0,116,116),
+              mode = "undirected",
+              diag = F,
+            )
+
+# add the edges
+new_graph_nobon <- add_edges(new_graph_nobon, unlist(t(edge_gr_nobon[,c(1,2)])))
+
+# plot the new_graph
+plot(new_graph_nobon, layout = layout.fruchterman.reingold,
+     vertex.size=3,
+     vertex.color='black',
+     vertex.label=NA,
+     edge.color=edge_gr$color, 
+     mode="undirected", 
+     edge.width=5, 
+     main="Graph union")
+
+legend("topleft",legend=c("Autistic data","Normal data","Both"),fill=c("green","purple","red"))
+
+```
+
+This graph is very difficult to interpret: non-autistic edges are 393 and autistic ones 459, especially the 'red' ones are a lot. We repeat that our goal is to find graphs that separate the representations of the two datasets as much as possible, so avoiding the Bonferroni-correction in one hand we obtain a lot of edges, and in other hand we are not so sure about their likelihood.
+
+### Last to die 
+
+As suggested, we can study which connections "survives" increasing the threshold. Are the same for both the groups?
+
+```{r}
+# Try with threshold = 0.50, how many edges come out?
+
+coraut_prova <- matrix(0,116,116)
+cornor_prova <- matrix(0,116,116)
+
+for (i in 1:115){
+  
+  for (j in (i+1):116){
+    
+    interaut <- (cor.test(mat2aut[,i],mat2aut[,j],conf.level = 1-0.05/bonf_coef ))
+    internor <- (cor.test(mat2nor[,i],mat2nor[,j],conf.level = 1-0.05/bonf_coef ))
+    
+    if ( min(abs(interaut$conf.int))>0.50 & interaut$conf.int[1]*interaut$conf.int[2]>0){
+      coraut_prova[i,j] = 1
+    }
+    if ( min(abs(internor$conf.int))>0.50 & internor$conf.int[1]*internor$conf.int[2]>0 ){
+      cornor_prova[i,j] = 1
+    }
+    
+  }
+  
+}
+
+
+cat('Number of connections for autistic graph with threshold equal to 0.50: '); cat(sum(coraut_prova))
+cat('\nNumber of connections for non-autistic graph with threshold equal to 0.50: '); cat(sum(cornor_prova))
+
+
+cat('\nSurvived edges in the autistic graph: \n')
+a <- which(as.matrix(coraut_prova)==1, arr.ind = T)
+a
+
+cat('\nSurvived edges in the non-autistic graph: \n')
+b <- which(as.matrix(cornor_prova)==1, arr.ind = T)
+b
+
+cat('\nNumber of edges common to both the graphs: '); cat(length(intersect(a, b))/2)
+```
+
+As we can see the edges with "high" correlations are different between the estimated graphs, maybe our choice for the pre-processing and pooling were usefull.
+
+```{r}
+# Find the thresholds for which one edge for each type are found
+
+coraut_prova <- matrix(0,116,116)
+cornor_prova <- matrix(0,116,116)
+
+for (i in 1:115){
+          for (j in (i+1):116){
+            
+            interaut <- (cor.test(mat2aut[,i],mat2aut[,j],conf.level = 1-0.05/bonf_coef ))
+            internor <- (cor.test(mat2nor[,i],mat2nor[,j],conf.level = 1-0.05/bonf_coef ))
+            if ( min(abs(interaut$conf.int))>0.60 & interaut$conf.int[1]*interaut$conf.int[2]>0){
+              coraut_prova[i,j] = 1
+            }
+            if ( min(abs(internor$conf.int))>0.73 & internor$conf.int[1]*internor$conf.int[2]>0 ){
+              cornor_prova[i,j] = 1
+            }
+            
+          }
+}
+cat('\nSurvived edges in the autistic graph with threshold equal to 0.60: \n')
+a <- which(as.matrix(coraut_prova)==1, arr.ind = T)
+a
+
+cat('\nSurvived edges in the non-autistic graph with threshold equal to 0.73: \n')
+b <- which(as.matrix(cornor_prova)==1, arr.ind = T)
+b
+```
+
+The connections stronger in the two situations tell us that in the non-autistic case this connection get 0.73, instead in the case of autistic one only 0.60.
+
+
+
+#  Partial correlation
+
+Up to here we have used simple correlation, now we consider the partial correlation.
+As described in the homework, it could be calculate using the precision matrix, as we have done here.
+
+```{r}
+
+Z_tran <- function(x,t){        # Z_transformation as in the homework
+  z <- atanh(x)                     
+  sigma <- 1 / sqrt(28)             # n - D - 1 = 145 - 116 - 1 = 28 
+  cint  <- z + c(-1, 1) * sigma * qnorm((1 + (1-0.05/bonf_coef)) / 2)
+  conint<- tanh(cint)
+  if (min(abs(conint))>=t & conint[1]*conint[2]>0){
+    return(1)
+    }
+  else
+    return(0)
+}
+
+matautpar<- cov(mat2aut)            # covariance matrices
+matnorpar<- cov(mat2nor)            
+
+invaut   <- solve(matautpar)        # inverse matrices
+invnor   <- solve(matnorpar)
+
+matinvaut<- matrix(0,116,116)
+matinvnor<- matrix(0,116,116)
+
+for (i in 1:116){
+  
+  for (j in 1:i){ # create the matrix of partial correlations
+
+    val            <- -invaut[i,j]/(sqrt(invaut[i,i]*invaut[j,j]))
+    matinvaut[i,j] <- val 
+    matinvaut[j,i] <- val
+
+    val            <- -invnor[i,j]/(sqrt(invnor[i,i]*invnor[j,j]))
+    matinvnor[i,j] <- val 
+    matinvnor[j,i] <- val
+    
+  }
+}
+
+# take the values under the diagonal
+corlmasd <- matinvaut[lower.tri(matinvaut)]
+corlmtd  <- matinvnor[lower.tri(matinvnor)]
+# choose some values as threshold
+varitlm  <- round(quantile(abs(c(corlmasd,corlmtd)),c(.3,.4,.5,.6,.7,.75,.8,.9,.95,0.99)),2)
+varitlm
+```
+
+```{r}
+autpar_tres <- rep(NA,10)
+norpar_tres <- rep(NA,10)
+diffpar     <- rep(NA,10)
+diffpar_tres<- rep(NA,10)
+dfpar       <- rep(NA,10)
+
+
+for (s in 1:10){
+  
+  matautpar <- unlist(lapply(matinvaut,Z_tran,t=varitlm[s])) # apply Z_tran on the elements of the 
+  matnorpar <- unlist(lapply(matinvnor,Z_tran,t=varitlm[s])) # two matrices, with thres = varitlm[s]
+        
+  
+  autpar_tres[s] <- (sum(matautpar)-116)/2  # how many "autistic" connections with thres = varitlm[s]
+  norpar_tres[s] <- (sum(matnorpar)-116)/2  # how many "non-autistic" connections with thres = varitlm[s]
+  
+  prova          <- matautpar + matnorpar
+  diffpar[s]     <- (sum(prova==1)/2)       # how many connections belong to a single group
+  # connections belong to a single group divide total connections found
+  diffpar_tres[s]<- diffpar[s]/(autpar_tres[s]+norpar_tres[s]) 
+  # connections belong to a single group divide connections belong to both the groups
+  dfpar[s]       <- diffpar[s]/((sum(prova==2)-116)/2)
+  
+}
+
+
+cbind(varitlm,autpar_tres,norpar_tres,diffpar,diffpar_tres,dfpar)
+
+```
+
+They are very few, but at least there aren't edges belong to both the groups, these values are quite daunting, maybe there is some problem (maybe the problem is the inverse of the matrices that has a very low determinants, or dividing to "sqrt(invnor[i,i]*invnor[j,j])", very low numbers, we affect the results, maybe... maybe we don't want to accept our failure).
+Nevertheless we want to prove to calculate directly the residuals and get the partial correlations from these.
+
+```{r}
+####
+
+
+corlmaut <- matrix(0,116,116)
+corlmnor <- matrix(0,116,116)
+    
+    for (i in 1:116){
+      
+      for (j in i:116){
+        
+        # calculate the residulas
+        res_xaut <- lm(as.matrix(mat2aut[,i]) ~ as.matrix(mat2aut[,-c(i,j)]))$residuals
+        res_yaut <- lm(as.matrix(mat2aut[,j]) ~ as.matrix(mat2aut[,-c(i,j)]))$residuals
+        
+        res_xnor <- lm(as.matrix(mat2nor[,i]) ~ as.matrix(mat2nor[,-c(i,j)]))$residuals
+        res_ynor <- lm(as.matrix(mat2nor[,j]) ~ as.matrix(mat2nor[,-c(i,j)]))$residuals
+        
+        # fill the matrices of partial correlation
+        corlmaut[i,j] <- cor(res_xaut,res_yaut)
+        corlmaut[j,i] <- cor(res_xaut,res_yaut)
+        corlmnor[i,j] <- cor(res_xnor,res_ynor)
+        corlmnor[j,i] <- cor(res_xnor,res_ynor)
+      
+      }
+      
+    }
+```
+
+
+```{r}
+
+autlm_tres <- rep(NA,10)
+norlm_tres <- rep(NA,10)
+difflm     <- rep(NA,10)
+difflm_tres<- rep(NA,10)
+dflm       <- rep(NA,10)
+comm       <- rep(NA,10)
+
+
+for (s in 1:10){
+  
+  matautpar <- unlist(lapply(corlmaut,Z_tran,t=varitlm[s]))
+  matnorpar <- unlist(lapply(corlmnor,Z_tran,t=varitlm[s]))
+        
+  
+  autlm_tres[s] <- (sum(matautpar)-116)/2
+  norlm_tres[s] <- (sum(matnorpar)-116)/2
+  
+  prova         <- matautpar + matnorpar
+  difflm[s]     <- (sum(prova==1))/2
+  difflm_tres[s]<- difflm[s]/(autlm_tres[s]+norlm_tres[s])
+  dflm[s]       <- difflm[s]/((sum(prova==2)-116)/2)
+  comm[s]       <- ((sum(prova==2)-116)/2)
+  
+
+}
+
+cbind(varitlm,autlm_tres,norlm_tres,difflm,difflm_tres,dflm,comm)
+
+```
+
+No, no there weren't problems. We have failed... anyway we have to move forward and try to do our analyses without Bonferroni-correction.
+
+
+```{r}
+Z_tran_nobon <- function(x,t){        # Z_transformation as in the homework
+  z <- atanh(x)                     
+  sigma <- 1 / sqrt(28)             # n - D - 1 = 145 - 116 - 1 = 28 
+  cint  <- z + c(-1, 1) * sigma * qnorm((1 + (1-0.05)) / 2)
+  conint<- tanh(cint)
+  if (min(abs(conint))>t & conint[1]*conint[2]>0){
+    return(1)
+    }
+  else
+    return(0)
+}
+
+autpar_tres_nobon <- rep(NA,10)
+norpar_tres_nobon <- rep(NA,10)
+diffpar_nobon     <- rep(NA,10)
+diffpar_tres_nobon<- rep(NA,10)
+dfpar_nobon       <- rep(NA,10)
+
+
+for (s in 1:10){
+  
+  matautpar_nobon <- unlist(lapply(matinvaut,Z_tran_nobon,t=varitlm[s])) # apply Z_tran on the elements of the 
+  matnorpar_nobon <- unlist(lapply(matinvnor,Z_tran_nobon,t=varitlm[s])) # two matrices, with thres = varitlm[s]
+        
+  
+  autpar_tres_nobon[s] <- (sum(matautpar_nobon)-116)/2  # how many "autistic" connections with thres = varitlm[s]
+  norpar_tres_nobon[s] <- (sum(matnorpar_nobon)-116)/2  # how many "non-autistic" connections with thres = varitlm[s]
+  
+  prova                <- matautpar_nobon + matnorpar_nobon
+  diffpar_nobon[s]     <- (sum(prova==1)/2)       # how many connections belong to a single group
+  # connections belong to a single group divide total connections found
+  diffpar_tres_nobon[s]<- diffpar_nobon[s]/(autpar_tres_nobon[s]+norpar_tres_nobon[s]) 
+  # connections belong to a single group divide connections belong to both the groups
+  dfpar_nobon[s]       <- diffpar_nobon[s]/((sum(prova==2)-116)/2)
+  
+}
+
+
+cbind(varitlm,autpar_tres_nobon,norpar_tres_nobon,diffpar_nobon,diffpar_tres_nobon,dfpar_nobon)
+
+```
+
+Aaaah, a lot of hugh numbers as we like. It's a pity that we are not sure about that results, because we have removed Bonferroni-correction. Nevertheless our statistics work well and the two groups are quite separate.
+
+We think that could be interesting show some plots about these results leaving out those with Bonferroni, which are very few.
+  
+As in the last part, in the next analyses we'll use $p=0.30$.
+
+```{r}
+matautpar <- matrix(unlist(lapply(corlmaut,Z_tran_nobon,t=.30)),116,116)
+matnorpar <- matrix(unlist(lapply(corlmnor,Z_tran_nobon,t=.30)),116,116)
+
+graph_aut_par <-graph_from_adjacency_matrix(
+            matautpar,
+            mode = "undirected",
+            diag = F,
+          )
+
+graph_nor_par <-graph_from_adjacency_matrix(
+            matnorpar,
+            mode = "undirected",
+            diag = F,
+          )
+
+```
+
+```{r}
+
+noredg_par <- get.edgelist(graph_nor_par)
+autedg_par <- get.edgelist(graph_aut_par)
+
+noredg_par <- as.data.frame(noredg_par)
+autedg_par <- as.data.frame(autedg_par)
+
+noredg_par['color'] <- rep('purple',length(noredg_par)-1)
+autedg_par['color'] <- rep('green',length(autedg_par)-1)
+
+edge_gr_par <- rbind(noredg_par,autedg_par)
+
+edge_gr_par <- as.data.frame(edge_gr_par)
+
+edge_gr_par[duplicated(edge_gr_par[1:2]) | duplicated(edge_gr_par[1:2], fromLast=TRUE),]$color <- rep('red',sum(duplicated(edge_gr_par[1:2]) | duplicated(edge_gr_par[1:2], fromLast=TRUE)))
+
+
+new_graph_par <- graph_from_data_frame(edge_gr_par)
+
+new_graph_par<-as.undirected(
+  new_graph_par,
+  mode = "collapse",
+)
+
+par(mfrow=c(1,2))
+a <- tkplot(graph_nor_par)
+plot(graph_nor_par, layout = layout.fruchterman.reingold, vertex.size=4, vertex.color='black', edge.color = 'purple', vertex.label=NA, mode="undirected",edge.width=5, main="Graph non-autistic patients\n(partial corr.)")
+b <- tkplot(graph_aut_par)
+plot(graph_aut_par, layout = layout.fruchterman.reingold, vertex.size=4, vertex.color='black', edge.color = 'green', vertex.label=NA, mode="undirected",edge.width=5, main="Graph autistic patients\n(partial corr.)")
+```
+
+As we can see in both the graphs there is a big connected component, these could be the ROIs that connect the others to each other.
+
+```{r}
+plot(new_graph_par,
+     vertex.size=4,
+     vertex.color='black',
+     layout = layout.fruchterman.reingold, 
+     edge.color=edge_gr_par$color,
+     mode="undirected",edge.width=5,
+     main="Graph union\n(partial corr.)"
+     )
+legend("topleft",legend=c("Autistic data","Normal data","Both"), fill=c("green","purple","red"))
+```
+
+The edges belonged to the different graphs are concentrated in the centre of the figure, they share a lot of vertices but very few edges. It's evident that non-autistic graph is more concentrated and its most connected component is bigger then the other, indeed autistic graph have more connected components.
+
+
+### Last to die 
+
+Who is the last to die in these new graphs?
+
+```{r}
+
+coraut_par <- matrix(0,116,116)
+cornor_par <- matrix(0,116,116)
+
+
+for (i in 1:115){
+  for (j in (i+1):116){
+    coraut_par[i,j] = Z_tran(corlmaut[i,j],0.25)
+    cornor_par[i,j] = Z_tran(corlmnor[i,j],0.45)
+  }
+}
+
+cat('Number of connections for autistic graph with threshold equal to 0.25: '); cat(sum(coraut_par))
+cat('\nNumber of connections for non-autistic graph with threshold equal to 0.45: '); cat(sum(cornor_par))
+
+
+cat('\nSurvived edges in the autistic graph: \n')
+a <- which(coraut_par==1, arr.ind = T)
+a
+
+cat('\nSurvived edges in the non-autistic graph: \n')
+b <- which(cornor_par==1, arr.ind = T)
+b
+
+cat('\nNumber of edges common to both the graphs: 0')
+```
+
+As we have already seen, above all for the autistic group, we find edges only for threshold quite low, in this case $t = 0.25$.
+
+Without Bonferroni-correction, are they the same?
+
+```{r}
+
+coraut_par <- matrix(0,116,116)
+cornor_par <- matrix(0,116,116)
+
+
+for (i in 1:115){
+  for (j in (i+1):116){
+    coraut_par[i,j] = Z_tran_nobon(corlmaut[i,j],0.60)
+    cornor_par[i,j] = Z_tran_nobon(corlmnor[i,j],0.65)
+  }
+}
+
+cat('Number of connections for autistic graph with threshold equal to 0.60: '); cat(sum(coraut_par))
+cat('\nNumber of connections for non-autistic graph with threshold equal to 0.65: '); cat(sum(cornor_par))
+
+
+cat('\nSurvived edges in the autistic graph: \n')
+a <- which(coraut_par==1, arr.ind = T)
+a
+
+cat('\nSurvived edges in the non-autistic graph: \n')
+b <- which(cornor_par==1, arr.ind = T)
+b
+
+cat('\nNumber of edges common to both the graphs: 0')
+```
+
+It's the same, almeno questo!
