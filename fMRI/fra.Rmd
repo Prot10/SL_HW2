@@ -9,24 +9,207 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+## Carico i dati
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r }
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+train <- read.csv("Data/train_hw03.csv")
+test  <- read.csv("Data/test_hw03.csv")
 
-```{r cars}
-summary(cars)
+train$y = ifelse(train$y=="autism", 1, 0)
+train$sex = ifelse(train$sex=="male", 1, 0)
+
+test$sex = ifelse(test$sex=="male", 1, 0)
+
 ```
 
-## Including Plots
+```{r }
+N_ROIs <- 116
+ROI_length <- 115
 
-You can also embed plots, for example:
+train_partial <- data.frame(matrix(ncol=N_ROIs*2, nrow=nrow(train)))
+col_names <- c(paste0("mean_ROI_", 1:N_ROIs), paste0("median_ROI_", 1:N_ROIs))
+colnames(train_partial) <- col_names
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+start <- 5
+
+for (i in 1:(N_ROIs)){
+  
+  sub_set <- train[, start:(start+ROI_length-1)]
+  ROIs_mean <- apply(sub_set, MARGIN=1, FUN=mean)
+  # ROIs_sd   <- apply(sub_set, MARGIN=1, FUN=sd)
+  ROIs_median <- apply(sub_set, MARGIN=1, FUN=median)
+  train_partial[, i] <- ROIs_mean
+  train_partial[, i+N_ROIs] <- ROIs_median
+  start <- start + ROI_length
+  
+}
+
+train_new <- cbind(train[, 1:4], train_partial)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
 
-asfsafafs
+```{r }
+N_ROIs <- 116
+ROI_length <- 115
+
+test_partial <- data.frame(matrix(ncol=N_ROIs*2, nrow=nrow(test)))
+col_names <- c(paste0("mean_ROI_", 1:N_ROIs), paste0("sd_ROI_", 1:N_ROIs))
+colnames(test_partial) <- col_names
+
+start <- 4
+
+for (i in 1:(N_ROIs)){
+  
+  sub_set <- test[, start:(start+ROI_length-1)]
+  ROIs_mean <- apply(sub_set, MARGIN=1, FUN=mean)
+  ROIs_sd   <- apply(sub_set, MARGIN=1, FUN=sd)
+  test_partial[, i] <- ROIs_mean
+  test_partial[, i+N_ROIs] <- ROIs_sd
+  start <- start + ROI_length
+  
+}
+
+test_new <- cbind(test[, 1:3], test_partial)
+```
+
+
+```{r }
+N <- nrow(train)
+n1 <- N/2
+idx <- sample(1:N, n1, replace=F)
+```
+
+
+```{r }
+Dn_1 <- train_new[idx, ]
+Dn_2 <- train_new[-idx, ]
+```
+
+```{r}
+model = glm(factor(y) ~ . -id, family = binomial(link = "logit"), data = Dn_1)
+summary(model)
+predicts <- predict(model, newdata = Dn_2, type = "response")
+binary_predictions <- ifelse(predicts >= 0.5, 1, 0)
+model$y
+cm = table(binary_predictions,Dn_2$y)
+cm
+classification_err <- 1 - sum(diag(cm)) / sum(cm)
+classification_err
+```
+
+```{r}
+library(randomForest)
+
+modello_forest <- randomForest(factor(y) ~ . -id, data = Dn_1)
+summary(modello_forest)
+
+predictions <- predict(modello_forest, newdata = Dn_2)
+table(predictions)
+table(Dn_2$y)
+table(predictions)
+cm = table(predictions,Dn_2$y)
+classification_err <- 1 - sum(diag(cm)) / sum(cm)
+classification_err
+```
+
+
+```{r}
+importance_variables <- importance(modello_forest)
+importance_variables = importance_variables[order(importance_variables, decreasing = TRUE),]
+head(importance_variables,10)
+
+Dn_1_most_importance <- data.frame(y = Dn_1$y,
+                              median_ROI_46 = Dn_1$median_ROI_46,
+                              mean_ROI_44 = Dn_1$mean_ROI_44,
+                              median_ROI_89 = Dn_1$median_ROI_89,
+                              median_ROI_5 = Dn_1$median_ROI_5,
+                              median_ROI_34 = Dn_1$median_ROI_34,
+                              mean_ROI_36 = Dn_1$mean_ROI_36,
+                              mean_ROI_20 = Dn_1$mean_ROI_20,
+                              mean_ROI_94 = Dn_1$mean_ROI_94,
+                              mean_ROI_2 = Dn_1$mean_ROI_2,
+                              median_ROI_104 = Dn_1$median_ROI_104)
+
+Dn_2_most_importance <- data.frame(y = Dn_2$y,
+                              median_ROI_46 = Dn_2$median_ROI_46,
+                              mean_ROI_44 = Dn_2$mean_ROI_44,
+                              median_ROI_89 = Dn_2$median_ROI_89,
+                              median_ROI_5 = Dn_2$median_ROI_5,
+                              median_ROI_34 = Dn_2$median_ROI_34,
+                              mean_ROI_36 = Dn_2$mean_ROI_36,
+                              mean_ROI_20 = Dn_2$mean_ROI_20,
+                              mean_ROI_94 = Dn_2$mean_ROI_94,
+                              mean_ROI_2 = Dn_2$mean_ROI_2,
+                              median_ROI_104 = Dn_2$median_ROI_104)
+```
+
+
+```{r}
+forest_top10 <- randomForest(factor(y) ~ . , data = Dn_1_most_importance)
+
+predictions <- predict(forest_top10, newdata = Dn_2_most_importance)
+table(predictions)
+```
+```{r}
+cm = table(predictions,Dn_2$y)
+cm
+classification_err <- 1 - sum(diag(cm)) / sum(cm)
+classification_err
+```
+```{r}
+library(caret)
+Dn_1$y <- factor(Dn_1$y)
+
+model_tune <- train(y ~ . - id,
+  data = Dn_1,
+  method = "glmnet",
+  preProc = c("center", "scale"),
+  tuneLength = 5
+)
+
+model_tune_svm <- train(y ~ . - id,
+  data = Dn_1,
+  method = "svmRadial",
+  preProc = c("center", "scale"),
+  tuneLength = 5
+)
+
+preds <- predict(model_tune_nn, newdata = Dn_2)
+preds
+
+confusionMatrix(data = preds, factor(Dn_2$y))
+```
+
+```{r}
+library(xgboost)
+modello_xgboost <- xgboost(data = as.matrix(Dn_1[, -y]), 
+                           label = Dn_1[, y], 
+                           nrounds = 100)
+
+pred <- predict(modello_xgboost, newdata = as.matrix(test_new))
+preds = round(pred)
+table(preds)
+
+
+```
+
+
+```{r}
+library(e1071)
+
+modello_svm <- svm(y ~ . -id, data = Dn_1, kernel = "linear", degree = 5, scale = T, probability = TRUE)
+
+# Fai previsioni sui dati di test
+previsioni <- predict(modello_svm, newdata = Dn_2)
+
+confusionMatrix(previsioni, factor(Dn_2$y))
+
+```
+
+
+```{r}
+importance_boosting <- xgb.importance(modello_xgboost)
+importance_boosting = importance_boosting[order(importance_boosting, decreasing = TRUE),]
+head(importance_boosting,10)
+```
