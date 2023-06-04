@@ -1,27 +1,27 @@
 {
-    "id": "DAD0E2BA",
-    "path": "C:/Users/paolo/OneDrive/Documenti/GitHub/SL_HW2/fMRI/prima_prova.R",
-    "project_path": "prima_prova.R",
+    "id": "AF72471C",
+    "path": "~/GitHub/SL_HW2/fMRI/prova_net.R",
+    "project_path": "prova_net.R",
     "type": "r_source",
-    "hash": "2189324545",
+    "hash": "0",
     "contents": "",
     "dirty": false,
-    "created": 1685636011488.0,
+    "created": 1685722066968.0,
     "source_on_save": false,
     "relative_order": 2,
     "properties": {
         "tempName": "Untitled1",
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "54,0",
-        "scrollLine": "38"
+        "cursorPosition": "86,0",
+        "scrollLine": "0"
     },
     "folds": "",
-    "lastKnownWriteTime": 1685694118,
+    "lastKnownWriteTime": 1685824635,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1685694118327,
+    "last_content_update": 1685824635471,
     "read_only": false,
     "read_only_alternatives": []
 }

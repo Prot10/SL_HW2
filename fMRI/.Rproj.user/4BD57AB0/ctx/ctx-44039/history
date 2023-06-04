@@ -1,0 +1,512 @@
+train$y[-to_del][1:400],
+alpha = 1,
+#lambda = 0.1,
+family = "binomial")
+mat_corr[1:400,]
+mat_corr
+for (j in 1:600){
+mat_corr[j,1:116] <- apply(abs(cor(mod[[j]])), MARGIN = 1, function(x) {sum(x>0.3)})
+}
+mat_corr <- matrix(nrow = 600, ncol = 118)
+for (j in 1:600){
+mat_corr[j,1:116] <- apply(abs(cor(mod[[j]])), MARGIN = 1, function(x) {sum(x>0.3)})
+}
+mat_corr[,117] <- train$sex
+mat_corr[,118] <- train$age
+to_del <- unique(which(is.na(mat_corr), arr.ind = T)[,1])
+mat_corr <- mat_corr[-to_del,]
+mat_corr
+# prova glm:
+# matrice con i dati relativi a D_1, cioè pazienti nel train
+data_d1 <- data.frame(train_partial[-to_del][1:400,])
+model_true <- cv.glmnet(mat_corr[1:400,],
+train$y[-to_del][1:400],
+alpha = 1,
+#lambda = 0.1,
+family = "binomial")
+lam <- model_true$lambda.min
+lam
+#model_true <- glmnet(y ~ ., data_d1, alpha = 1, lambda = 0.1, family = "binomial")
+sum(abs((as.numeric(predict(model_true, as.matrix(data_d1),s = lam, type = "class"))-train$y[-to_del][1:400])))
+#model_true <- glmnet(y ~ ., data_d1, alpha = 1, lambda = 0.1, family = "binomial")
+sum(abs((as.numeric(predict(model_true, as.matrix(data_d1),s = lam, type = "class"))-train$y[-to_del][1:400])))
+#model_true <- glmnet(y ~ ., data_d1, alpha = 1, lambda = 0.1, family = "binomial")
+sum(abs((as.numeric(predict(model_true, mat_corr[1:400],s = lam, type = "class"))-train$y[-to_del][1:400])))
+train$y[-to_del][1:400]
+mat_corr[1:400,]
+#model_true <- glmnet(y ~ ., data_d1, alpha = 1, lambda = 0.1, family = "binomial")
+sum(abs((as.numeric(predict(model_true, mat_corr[1:400,],s = lam, type = "class"))-train$y[-to_del][1:400])))
+mat_corr <- matrix(nrow = 600, ncol = 118)
+for (j in 1:600){
+mat_corr[j,1:116] <- apply(abs(cor(mod[[j]])), MARGIN = 1, function(x) {sum(x>0.5)})
+}
+mat_corr[,117] <- train$sex
+mat_corr[,118] <- train$age
+to_del <- unique(which(is.na(mat_corr), arr.ind = T)[,1])
+mat_corr <- mat_corr[-to_del,]
+model_true <- cv.glmnet(mat_corr[1:400,],
+train$y[-to_del][1:400],
+alpha = 1,
+#lambda = 0.1,
+family = "binomial")
+lam <- model_true$lambda.min
+lam
+#model_true <- glmnet(y ~ ., data_d1, alpha = 1, lambda = 0.1, family = "binomial")
+sum(abs((as.numeric(predict(model_true, mat_corr[1:400,],s = lam, type = "class"))-train$y[-to_del][1:400])))
+for (j in 1:600){
+mat_corr[j,1:116] <- apply(abs(cor(mod[[j]])), MARGIN = 1, function(x) {sum(x>0.2)})
+}
+mat_corr <- matrix(nrow = 600, ncol = 118)
+for (j in 1:600){
+mat_corr[j,1:116] <- apply(abs(cor(mod[[j]])), MARGIN = 1, function(x) {sum(x>0.2)})
+}
+mat_corr[,117] <- train$sex
+mat_corr[,118] <- train$age
+to_del <- unique(which(is.na(mat_corr), arr.ind = T)[,1])
+mat_corr <- mat_corr[-to_del,]
+model_true <- cv.glmnet(mat_corr[1:400,],
+train$y[-to_del][1:400],
+alpha = 1,
+#lambda = 0.1,
+family = "binomial")
+lam <- model_true$lambda.min
+#model_true <- glmnet(y ~ ., data_d1, alpha = 1, lambda = 0.1, family = "binomial")
+sum(abs((as.numeric(predict(model_true, mat_corr[1:400,],s = lam, type = "class"))-train$y[-to_del][1:400])))
+mat_corr
+for (j in 1:600){
+mat_corr[j,1:116] <- apply(abs(cor(mod[[j]])), MARGIN = 1, function(x) {sum(x>0.4)})
+}
+mat_corr <- matrix(nrow = 600, ncol = 118)
+for (j in 1:600){
+mat_corr[j,1:116] <- apply(abs(cor(mod[[j]])), MARGIN = 1, function(x) {sum(x>0.4)})
+}
+mat_corr[,117] <- train$sex
+mat_corr[,118] <- train$age
+to_del <- unique(which(is.na(mat_corr), arr.ind = T)[,1])
+mat_corr <- mat_corr[-to_del,]
+model_true <- cv.glmnet(mat_corr[1:400,],
+train$y[-to_del][1:400],
+alpha = 1,
+#lambda = 0.1,
+family = "binomial")
+lam <- model_true$lambda.min
+#model_true <- glmnet(y ~ ., data_d1, alpha = 1, lambda = 0.1, family = "binomial")
+sum(abs((as.numeric(predict(model_true, mat_corr[1:400,],s = lam, type = "class"))-train$y[-to_del][1:400])))
+as.numeric(predict(model_true, mat_corr[1:400,],s = lam, type = "class")
+#model_true <- glmnet(y ~ ., data_d1, alpha = 1, lambda = 0.1, family = "binomial")
+sum(abs((as.numeric(predict(model_true, mat_corr[1:400,],s = lam, type = "class"))-train$y[-to_del][1:400])))
+as.numeric(predict(model_true, mat_corr[1:400,],s = lam, type = "class"))
+for (j in 1:600){
+mat_corr <- matrix(nrow = 600, ncol = 118)
+for (j in 1:600){
+}
+mat_corr[,117] <- train$sex
+mat_corr[,118] <- train$age
+to_del <- unique(which(is.na(mat_corr), arr.ind = T)[,1])
+mat_corr <- mat_corr[-to_del,]
+model_true <- cv.glmnet(mat_corr[1:400,],
+train$y[-to_del][1:400],
+alpha = 1,
+#lambda = 0.1,
+family = "binomial")
+lam <- model_true$lambda.min
+#model_true <- glmnet(y ~ ., data_d1, alpha = 1, lambda = 0.1, family = "binomial")
+sum(abs((as.numeric(predict(model_true, mat_corr[1:400,],s = lam, type = "class"))-train$y[-to_del][1:400])))
+sx
+swsù
+s
+s
+s
+s
+s
+d
+d
+q()
+fun_dentro <- function(data, ind, feat, model_true, model_j){
+aieie <- data[ind,]
+true <- predict(model_true,
+as.matrix(aieie[,-119]),
+type = "class")
+meno_j <- predict(model_j,
+as.matrix(aieie[,-c(feat,119)]),
+type = "class")
+return(sum(abs(as.numeric(as.matrix(aieie[,119]))-as.numeric(meno_j)))/sum(abs(as.numeric(as.matrix(aieie[,119]))-as.numeric(true))))
+}
+mod_for <- list()
+for (i in 1:118){
+print(i)
+mod_for[[i]] <- glmnet(as.matrix(data_d1[,-c(i,119)]),
+as.factor(train$y[-to_del][1:400]),
+alpha = 1,
+lambda = lam,
+family = "binomial")
+}
+library(glmnet)
+library(boot)
+library(randomForest)
+mod_for <- list()
+for (i in 1:118){
+print(i)
+mod_for[[i]] <- glmnet(as.matrix(data_d1[,-c(i,119)]),
+as.factor(train$y[-to_del][1:400]),
+alpha = 1,
+lambda = lam,
+family = "binomial")
+}
+b <- list()
+for (f in 1:118){
+print(f)
+b[[f]] <- boot(data_d2,
+statistic = fun_dentro,
+R = 200,
+feat = f,
+model_true = model_true,
+model_j = mod_for[[f]],
+parallel = "multicore")
+b_median[f] <- median(b[[f]]$t)
+print(b_median[f])
+}
+model_true <- cv.glmnet(as.matrix(data_d1[,-119]),
+as.factor(train$y[-to_del][1:400]),
+alpha = 1,
+family = "binomial")
+for (f in 1:118){
+print(f)
+b[[f]] <- boot(data_d2,
+statistic = fun_dentro,
+R = 200,
+feat = f,
+model_true = model_true,
+model_j = mod_for[[f]],
+parallel = "multicore")
+b_median[f] <- median(b[[f]]$t)
+print(b_median[f])
+}
+data_d2
+# prova glm:
+# matrice con i dati relativi a D_1, cioè pazienti nel train
+data_d1 <- data.frame(train_partial[-to_del,][1:400,])
+data_d2 <- data.frame(train_partial[-to_del,][401:(600-16),])
+data_d1$y <- train$y[-to_del][1:400]
+data_d2$y <- train$y[-to_del][401:(600-16)]
+data_d1
+data_d2
+# prova glm:
+# matrice con i dati relativi a D_1, cioè pazienti nel train
+data_d1 <- data.frame(train_partial[-to_del,][1:400,])
+data_d1
+to_del <- unique(which(is.na(train_partial), arr.ind = T)[,1])
+# prova glm:
+# matrice con i dati relativi a D_1, cioè pazienti nel train
+data_d1 <- data.frame(train_partial[-to_del,][1:400,])
+data_d2 <- data.frame(train_partial[-to_del,][401:(600-16),])
+data_d1
+#test$sex = ifelse(test$sex=="male", 1, 0)
+N_ROIs <- 116
+ROI_length <- 115
+train_partial <- data.frame(matrix(ncol=N_ROIs, nrow=nrow(train)))
+# col_names <- c(paste0("mean_ROI_", 1:N_ROIs), paste0("sd_ROI_", 1:N_ROIs))
+col_names <- c(paste0("mean_ROI_", 1:N_ROIs))
+colnames(train_partial) <- col_names
+start <- 5
+fun_apply <- function(x){
+return(median(scale(x)))
+}
+for (i in 1:(N_ROIs)){
+sub_set <- train[, start:(start+ROI_length-1)]
+ROIs_mean <- apply(sub_set, MARGIN=1, FUN=fun_apply)
+#ROIs_sd <- apply(sub_set, MARGIN=1, FUN=sd)
+train_partial[, i] <- ROIs_mean
+#train_partial[, i+N_ROIs] <- ROIs_sd
+start <- start + ROI_length
+}
+train_partial$sex <- train$sex
+train_partial$age <- train$age
+to_del <- unique(which(is.na(train_partial), arr.ind = T)[,1])
+# prova glm:
+# matrice con i dati relativi a D_1, cioè pazienti nel train
+data_d1 <- data.frame(train_partial[-to_del,][1:400,])
+data_d2 <- data.frame(train_partial[-to_del,][401:(600-16),])
+data_d1
+data_d1$y <- train$y[-to_del][1:400]
+data_d2$y <- train$y[-to_del][401:(600-16)]
+model_true <- cv.glmnet(as.matrix(data_d1[,-119]),
+as.factor(train$y[-to_del][1:400]),
+alpha = 1,
+family = "binomial")
+lam <- model_true$lambda.min
+#model_true <- glmnet(y ~ ., data_d1, alpha = 1, lambda = 0.1, family = "binomial")
+sum(abs((as.numeric(predict(model_true, as.matrix(data_d1[,primi_10]), type = "class"))-train$y[-to_del][1:400])))
+#model_true <- glmnet(y ~ ., data_d1, alpha = 1, lambda = 0.1, family = "binomial")
+sum(abs((as.numeric(predict(model_true, as.matrix(data_d1[,-119]), type = "class"))-train$y[-to_del][1:400])))
+fun_dentro <- function(data, ind, feat, model_true, model_j){
+aieie <- data[ind,]
+true <- predict(model_true,
+as.matrix(aieie[,-119]),
+type = "class")
+meno_j <- predict(model_j,
+as.matrix(aieie[,-c(feat,119)]),
+type = "class")
+return(sum(abs(as.numeric(as.matrix(aieie[,119]))-as.numeric(meno_j)))/sum(abs(as.numeric(as.matrix(aieie[,119]))-as.numeric(true))))
+}
+forest <- randomForest(data_d1[,ind_paper], factor(data_d1$y, levels = c(0,1)), ntree = 1500)
+forest <- randomForest(data_d1, factor(data_d1$y, levels = c(0,1)), ntree = 1500)
+forest <- randomForest(data_d1[,-119], factor(data_d1$y, levels = c(0,1)), ntree = 1500)
+primi_10 <- order(forest$importance, decreasing = T)[1:20]
+primi_10
+forest
+mod_for <- list()
+for (i in 1:118){
+print(i)
+mod_for[[i]] <- glmnet(as.matrix(data_d1[,-c(i,119)]),
+as.factor(train$y[-to_del][1:400]),
+alpha = 1,
+lambda = lam,
+family = "binomial")
+}
+b <- list()
+for (f in 1:118){
+print(f)
+b[[f]] <- boot(data_d2,
+statistic = fun_dentro,
+R = 200,
+feat = f,
+model_true = model_true,
+model_j = mod_for[[f]],
+parallel = "multicore")
+b_median[f] <- median(b[[f]]$t)
+print(b_median[f])
+}
+b_median <- rep(NA,118)
+for (f in 1:118){
+print(f)
+b[[f]] <- boot(data_d2,
+statistic = fun_dentro,
+R = 200,
+feat = f,
+model_true = model_true,
+model_j = mod_for[[f]],
+parallel = "multicore")
+b_median[f] <- median(b[[f]]$t)
+print(b_median[f])
+}
+ind_paper = b_median>1
+sum(ind_paper)
+ind_paper = b_median>1
+sum(ind_paper)
+model_only_ind <- cv.glmnet(as.matrix(data_d1[,ind_paper]),
+as.factor(train$y[-to_del][1:400]),
+alpha = 1,
+family = "binomial")
+lam <- model_only_ind$lambda.min
+#model_true <- glmnet(y ~ ., data_d1, alpha = 1, lambda = 0.1, family = "binomial")
+sum(abs((as.numeric(predict(model_only_ind, as.matrix(data_d1[ind_paper]), type = "class"))-train$y[-to_del][1:400])))
+# prova glm:
+# matrice con i dati relativi a D_1, cioè pazienti nel train
+data_d1 <- data.frame(train_partial[-to_del,][1:500,])
+data_d2 <- data.frame(train_partial[-to_del,][501:(600-16),])
+data_d1$y <- train$y[-to_del][1:500]
+data_d2$y <- train$y[-to_del][501:(600-16)]
+model_true <- cv.glmnet(as.matrix(data_d1[,-119]),
+as.factor(train$y[-to_del][1:500]),
+alpha = 1,
+family = "binomial")
+lam <- model_true$lambda.min
+#model_true <- glmnet(y ~ ., data_d1, alpha = 1, lambda = 0.1, family = "binomial")
+sum(abs((as.numeric(predict(model_true, as.matrix(data_d1[,-119]), type = "class"))-train$y[-to_del][1:400])))
+#model_true <- glmnet(y ~ ., data_d1, alpha = 1, lambda = 0.1, family = "binomial")
+sum(abs((as.numeric(predict(model_true, as.matrix(data_d1[,-119]), type = "class"))-train$y[-to_del][1:500])))
+fun_dentro <- function(data, ind, feat, model_true, model_j){
+aieie <- data[ind,]
+true <- predict(model_true,
+as.matrix(aieie[,-119]),
+type = "class")
+meno_j <- predict(model_j,
+as.matrix(aieie[,-c(feat,119)]),
+type = "class")
+return(sum(abs(as.numeric(as.matrix(aieie[,119]))-as.numeric(meno_j)))/sum(abs(as.numeric(as.matrix(aieie[,119]))-as.numeric(true))))
+}
+forest <- randomForest(data_d1[,-119], factor(data_d1$y, levels = c(0,1)), ntree = 1500)
+forest
+mod <- list()
+start <- 5
+for (i in 1:600){
+mod[[i]] <- matrix(nrow = 115, ncol = 116)
+}
+for (i in 1:(N_ROIs)){
+sub_set <- train[, start:(start+ROI_length-1)]
+for (j in 1:600){
+mod[[j]][,i] <- as.numeric(sub_set[j,])
+}
+start <- start + ROI_length
+}
+mod
+for (i in 1:(N_ROIs)){
+sub_set <- train[, start:(start+ROI_length-1)]
+ROIs_mean <- apply(sub_set, MARGIN=1, FUN=mean)
+#ROIs_sd <- apply(sub_set, MARGIN=1, FUN=sd)
+train_partial[, i] <- ROIs_mean
+#train_partial[, i+N_ROIs] <- ROIs_sd
+start <- start + ROI_length
+}
+for (i in 1:(N_ROIs)){
+sub_set <- train[, start:(start+ROI_length-1)]
+ROIs_mean <- apply(sub_set, MARGIN=1, FUN=mean)
+#ROIs_sd <- apply(sub_set, MARGIN=1, FUN=sd)
+train_partial[, i] <- ROIs_mean
+#train_partial[, i+N_ROIs] <- ROIs_sd
+start <- start + ROI_length
+}
+#test$sex = ifelse(test$sex=="male", 1, 0)
+N_ROIs <- 116
+ROI_length <- 115
+train_partial <- data.frame(matrix(ncol=N_ROIs, nrow=nrow(train)))
+# col_names <- c(paste0("mean_ROI_", 1:N_ROIs), paste0("sd_ROI_", 1:N_ROIs))
+col_names <- c(paste0("mean_ROI_", 1:N_ROIs))
+colnames(train_partial) <- col_names
+start <- 5
+for (i in 1:(N_ROIs)){
+sub_set <- train[, start:(start+ROI_length-1)]
+ROIs_mean <- apply(sub_set, MARGIN=1, FUN=mean)
+#ROIs_sd <- apply(sub_set, MARGIN=1, FUN=sd)
+train_partial[, i] <- ROIs_mean
+#train_partial[, i+N_ROIs] <- ROIs_sd
+start <- start + ROI_length
+}
+train_partial$sex <- train$sex
+train_partial$age <- train$age
+to_del <- unique(which(is.na(train_partial), arr.ind = T)[,1])
+to_del
+# prova glm:
+# matrice con i dati relativi a D_1, cioè pazienti nel train
+data_d1 <- data.frame(train_partial[-to_del,][1:500,])
+# prova glm:
+# matrice con i dati relativi a D_1, cioè pazienti nel train
+data_d1 <- data.frame(train_partial[-to_del,][1:500,])
+data_d2 <- data.frame(train_partial[-to_del,][501:(600-length(to_del)),])
+data_d1$y <- train$y[-to_del][1:500]
+data_d2$y <- train$y[-to_del][501:(600-length(to_del))]
+model_true <- cv.glmnet(as.matrix(data_d1[,-119]),
+as.factor(train$y[-to_del][1:500]),
+alpha = 1,
+family = "binomial")
+data_d1$y
+train$y[-to_del][1:500]
+to_del
+data_d2
+to_del <- unique(which(is.na(train_partial), arr.ind = T)[,1])
+# prova glm:
+# matrice con i dati relativi a D_1, cioè pazienti nel train
+data_d1 <- data.frame(train_partial[-to_del,][1:500,])
+data_d2 <- data.frame(train_partial[-to_del,][501:(600-length(to_del)),])
+data_d1
+to_del
+# prova glm:
+# matrice con i dati relativi a D_1, cioè pazienti nel train
+if (length(to_del)>0){
+data_d1 <- data.frame(train_partial[-to_del,][1:500,])
+data_d2 <- data.frame(train_partial[-to_del,][501:(600-length(to_del)),])
+data_d1$y <- train$y[-to_del][1:500]
+data_d2$y <- train$y[-to_del][501:(600-length(to_del))]
+} else{
+data_d1 <- data.frame(train_partial[1:500,])
+data_d2 <- data.frame(train_partial[501:600,])
+data_d1$y <- train$y[1:500]
+data_d2$y <- train$y[501:600]
+}
+data_d1
+data_d2
+model_true <- cv.glmnet(as.matrix(data_d1[,-119]),
+as.factor(train$y[-to_del][1:500]),
+alpha = 1,
+family = "binomial")
+cv.glmnet(as.matrix(data_d1[,-119]),
+as.factor(train$y[-to_del][1:500]),
+alpha = 1,
+family = "binomial")
+model_true <- cv.glmnet(as.matrix(data_d1[,-119]),
+as.factor(train$y[1:500]),
+alpha = 1,
+family = "binomial")
+lam <- model_true$lambda.min
+lam
+#model_true <- glmnet(y ~ ., data_d1, alpha = 1, lambda = 0.1, family = "binomial")
+sum(abs((as.numeric(predict(model_true, as.matrix(data_d1[,-119]), type = "class"))-train$y[1:500])))
+fun_dentro <- function(data, ind, feat, model_true, model_j){
+aieie <- data[ind,]
+true <- predict(model_true,
+as.matrix(aieie[,-119]),
+type = "class")
+meno_j <- predict(model_j,
+as.matrix(aieie[,-c(feat,119)]),
+type = "class")
+return(sum(abs(as.numeric(as.matrix(aieie[,119]))-as.numeric(meno_j)))/sum(abs(as.numeric(as.matrix(aieie[,119]))-as.numeric(true))))
+}
+forest <- randomForest(data_d1[,-119], factor(data_d1$y, levels = c(0,1)), ntree = 1500)
+primi_10 <- order(forest$importance, decreasing = T)[1:20]
+forest
+mod <- list()
+start <- 5
+for (i in 1:600){
+mod[[i]] <- matrix(nrow = 115, ncol = 116)
+}
+for (i in 1:(N_ROIs)){
+sub_set <- train[, start:(start+ROI_length-1)]
+for (j in 1:600){
+mod[[j]][,i] <- as.numeric(sub_set[j,])
+}
+start <- start + ROI_length
+}
+mod[[j]]
+library(glmnet)
+library(boot)
+library(randomForest)
+library(caret)
+library(doParallel)
+model<-train(mat_sana[,3]~mat_sana[,-3], method='rf')
+mat_sana <- as.matrix(train[-1])
+start = 4
+for (i in 1:(N_ROIs)){
+mat_sana[,start:(start+ROI_length-1)] <-apply(mat_sana[,start:(start+ROI_length-1)],
+MARGIN=2,
+FUN=scale)
+#ROIs_sd <- apply(sub_set, MARGIN=1, FUN=sd)
+#train_partial[, i] <- ROIs_mean
+#train_partial[, i+N_ROIs] <- ROIs_sd
+start <- start + ROI_length
+}
+cl<-makePSOCKcluster(5)
+registerDoParallel(cl)
+start.time<-proc.time()
+#forest_sana <- randomForest(mat_sana[,-3],
+mat_sana[,3])
+#forest_sana <- randomForest(mat_sana[,-3],mat_sana[,3])
+model<-train(mat_sana[,3]~mat_sana[,-3], method='rf')
+#forest_sana <- randomForest(mat_sana[,-3],mat_sana[,3])
+model<-train(mat_sana[,3]~mat_sana[,-3], data = mat_sana, method='rf')
+as.data.frame(mat_sana)
+sana <- as.data.frame(mat_sana)
+cl<-makePSOCKcluster(5)
+registerDoParallel(cl)
+start.time<-proc.time()
+#forest_sana <- randomForest(mat_sana[,-3],mat_sana[,3])
+model<-train(y~., data = sana, method='rf')
+?randomForest
+numWorkers <- detectCores()
+cl <- makeCluster(numWorkers)
+registerDoParallel(cl)
+rf <- foreach(ntree=rep(100, 4), .combine=randomForest::combine,
+.multicombine=TRUE, .packages='randomForest') %dopar% {
+randomForest(x, y, ntree=ntree)
+}
+rf <- foreach(ntree=rep(100, 4), .combine=randomForest::combine,
+.multicombine=TRUE, .packages='randomForest') %dopar% {
+randomForest(mat_sana[,-3], mat_sana[,3], ntree=ntree)
+}
+rf <- foreach(ntree=rep(1, 4),
+.combine=randomForest::combine,
+.multicombine=TRUE,
+.packages='randomForest') %dopar% {
+randomForest(mat_sana[,-3], mat_sana[,3], ntree=ntree)
+}
+stopCluster(cl)

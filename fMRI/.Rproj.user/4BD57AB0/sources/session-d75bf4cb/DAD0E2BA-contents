@@ -1,7 +1,9 @@
 library(glmnet)
 library(boot)
 library(randomForest)
+library(caret)
 library(doParallel)
+
 
 train <- read.csv("train_hw03.csv")
 #test  <- read.csv("test_hw03.csv")
@@ -52,14 +54,14 @@ if (length(to_del)>0){
     data_d2$y <- train$y[501:600]
 }
 
-model_true <- cv.glmnet(as.matrix(data_d1[sd_mod[1:500]<2,-119]), 
-                        as.factor(train$y[1:500][sd_mod[1:500]<2]),
+model_true <- cv.glmnet(as.matrix(data_d1[,-119]), 
+                        as.factor(train$y[1:500]),
                         alpha = 1,
                         family = "binomial")
 
 lam <- model_true$lambda.min
 #model_true <- glmnet(y ~ ., data_d1, alpha = 1, lambda = 0.1, family = "binomial")
-sum(abs((as.numeric(predict(model_true, as.matrix(data_d1[sd_mod[1:500]<=2,-119]), type = "class"))-train$y[1:500][sd_mod[1:500]<2])))
+sum(abs((as.numeric(predict(model_true, as.matrix(data_d1[,-119]), type = "class"))-train$y[1:500])))
 
 # per ogni jth devo calcolare il model su D_1 con e senza j th
 
@@ -76,26 +78,9 @@ fun_dentro <- function(data, ind, feat, model_true, model_j){
 
 ### Random Forest
 
-numWorkers <- detectCores()  
-cl <- makeCluster(numWorkers)
-registerDoParallel(cl)
-
-rf <- foreach(ntree=rep(100000, numWorkers),
-              .combine=randomForest::combine,
-              .multicombine=TRUE, 
-              .packages='randomForest') %dopar% {
-                         randomForest(data_d1[sd_mod[1:500]<2,-119],
-                                      as.factor(train$y[1:500][sd_mod[1:500]<2]), 
-                                      ntree = ntree)
-              }
-
-stopCluster(cl)
-
-sum(abs(as.numeric(rf$y)-as.numeric(rf$predicted)))
-rf$importance[order(rf$importance,decreasing = T),]
-
+forest <- randomForest(data_d1[,-119], factor(data_d1$y, levels = c(0,1)), ntree = 1500)
 primi_10 <- order(forest$importance, decreasing = T)[1:20]
-#################
+
 mod_for <- list()
 
 for (i in 1:118){
