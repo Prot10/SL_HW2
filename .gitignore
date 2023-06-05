@@ -1,3 +1,11 @@
 
 *.csv
 .Rproj.user
+*.pkl
+Chatbot/cartella senza nome/dataset.ipynb
+Chatbot/cartella senza nome/extraction_from_britannica (1).ipynb
+Chatbot/cartella senza nome/lista_text_from_britannica.txt
+Chatbot/cartella senza nome/LLM_model.ipynb
+Chatbot/cartella senza nome/main.ipynb
+Chatbot/cartella senza nome/Question_list_britannica.txt
+Chatbot/cartella senza nome/questions.json
