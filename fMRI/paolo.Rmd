@@ -1,7 +1,7 @@
 ---
-title: "paolo"
-author: "Io"
-date: "2023-05-31"
+title: "Homework 2 Stat-Learn"
+author: "Leoni, Morosini, Protani, Sottile, Tarantino"
+date: "06/2023"
 output: html_document
 ---
 
@@ -17,11 +17,417 @@ library(glmnet)
 library(ppcor)
 library(ggplot2)
 library(gt)
-load("data.RData")
+library(gganimate)
+library(grid)
+library(jpeg)
 ```
 
 # Introduction
 In this homework we'll deal with fRMI, in particular with the Autism Brain Image Data Exchange Project. Our train data are time series of activity associated to 116 distinct ROIs (regions of interest) observed at 115 time instants. We have to keep up some information by this data to classify autism and "normal" brain.
+
+```{r }
+
+load("coordinates.RData")
+train <- read.csv("train_hw03.csv")
+train$y <- ifelse(train$y=="autism",1,0)
+
+coordinates <- aal116coordinates[, 2:4]
+
+N_ROIs <- 116
+ROI_length <- 115
+
+```
+
+#### Simulazione grafica di una serie temporale
+
+```{r}
+subset_td  <- train[train$y == 0, 5:ncol(train)]
+subset_asd <- train[train$y == 1, 5:ncol(train)]
+
+# Calculate the mean over the rows of each column (except class column)
+mean_td_subject  <- data.frame(colMeans(subset_td))
+mean_asd_subject <- data.frame(colMeans(subset_asd))
+
+df_td  <- data.frame(cbind(x=rep(coordinates$x, each=ROI_length), y=rep(coordinates$y, each=ROI_length), 
+                    values=mean_td_subject[, 1], time_step=rep(1:ROI_length, N_ROIs)))
+df_asd <- data.frame(cbind(x=rep(coordinates$x, each=ROI_length), y=rep(coordinates$y, each=ROI_length), 
+                    values=mean_asd_subject[, 1], time_step=rep(1:ROI_length, N_ROIs)))
+
+```
+
+Grafico td:
+
+<div style="text-align: center;">
+
+```{r, echo=FALSE, out.width='.49\\linewidth', fig.width=3, fig.height=3, fig.show='hold'}
+
+### axial coordinates parameters
+
+dec_factor <- 1.65
+max_x <- max(coordinates$x) * dec_factor
+min_x <- min(coordinates$x) * dec_factor
+max_y <- max(coordinates$y) * dec_factor
+min_y <- min(coordinates$y) * (dec_factor-0.35)
+
+################
+### Axial TD ###
+################
+
+axial_td  <- data.frame(cbind(x=rep(coordinates$x, each=ROI_length), y=rep(coordinates$y, each=ROI_length), 
+                    values=mean_td_subject[, 1], time_step=rep(1:ROI_length, N_ROIs)))
+
+# Path to the image file
+image_path <- "axialTD.jpg"
+
+# Read the JPEG image
+image_data <- readJPEG(image_path)
+
+# Plot the animated points with the image as background
+p <- ggplot(axial_td, aes(x=x, y=y-10)) +
+  annotation_custom(
+    rasterGrob(image_data, width=unit(1, "npc"), height=unit(1, "npc")),
+    xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf
+  ) +
+  geom_point(aes(size=abs(values), alpha=abs(values)), color="chartreuse", shape=15) +
+  labs(x=NULL, y=NULL) +
+  theme_void() +
+  xlim(min_x, max_x) +
+  ylim(min_y, max_y) +
+  theme(legend.position="none")
+
+# Create the animated plot
+animated_plot <- p +
+  transition_time(time_step) +
+  ease_aes("linear")
+
+# Render and play the animation
+animate(animated_plot, width=350, height=350)
+
+
+#################
+### Axial ASD ###
+#################
+
+axial_asd <- data.frame(cbind(x=rep(coordinates$x, each=ROI_length), y=rep(coordinates$y, each=ROI_length), 
+                    values=mean_asd_subject[, 1], time_step=rep(1:ROI_length, N_ROIs)))
+
+# Path to the image file
+image_path <- "axialASD.jpg"
+
+# Read the JPEG image
+image_data <- readJPEG(image_path)
+
+# Plot the animated points with the image as background
+p <- ggplot(axial_asd, aes(x=x, y=y-10)) +
+  annotation_custom(
+    rasterGrob(image_data, width=unit(1, "npc"), height=unit(1, "npc")),
+    xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf
+  ) +
+  geom_point(aes(size=abs(values), alpha=abs(values)), color="chartreuse", shape = 15) +
+  labs(x=NULL, y=NULL) +
+  theme_void() +
+  xlim(min_x, max_x) +
+  ylim(min_y, max_y) +
+  theme(legend.position="none")
+
+# Create the animated plot
+animated_plot <- p +
+  transition_time(time_step) +
+  ease_aes("linear")
+
+# Render and play the animation
+animate(animated_plot, width=350, height=350)
+
+
+### coronal coordinates parameters
+
+dec_factor <- 1.65
+max_x <- max(coordinates$x) * (dec_factor-0.4)
+min_x <- min(coordinates$x) * (dec_factor-0.4)
+max_y <- max(coordinates$z) * (dec_factor)
+min_y <- min(coordinates$z) * (dec_factor)
+
+##################
+### Coronal TD ###
+##################
+
+coronal_td  <- data.frame(cbind(x=rep(coordinates$x, each=ROI_length), y=rep(coordinates$z, each=ROI_length), 
+                    values=mean_td_subject[, 1], time_step=rep(1:ROI_length, N_ROIs)))
+
+# Path to the image file
+image_path <- "coronalTD.jpg"
+
+# Read the JPEG image
+image_data <- readJPEG(image_path)
+
+# Plot the animated points with the image as background
+p <- ggplot(coronal_td, aes(x=x, y=y)) +
+  annotation_custom(
+    rasterGrob(image_data, width=unit(1, "npc"), height=unit(1, "npc")),
+    xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf
+  ) +
+  geom_point(aes(size=abs(values), alpha=abs(values)+0.5), color="yellow", shape=15) +
+  labs(x=NULL, y=NULL) +
+  theme_void() +
+  xlim(min_x, max_x) +
+  ylim(min_y, max_y) +
+  theme(legend.position="none")
+
+# Create the animated plot
+animated_plot <- p +
+  transition_time(time_step) +
+  ease_aes("linear")
+
+# Render and play the animation
+animate(animated_plot, width=350, height=350)
+
+
+###################
+### Coronal ASD ###
+###################
+
+coronal_asd <- data.frame(cbind(x=rep(coordinates$x, each=ROI_length), y=rep(coordinates$z, each=ROI_length), 
+                    values=mean_asd_subject[, 1], time_step=rep(1:ROI_length, N_ROIs)))
+
+# Path to the image file
+image_path <- "coronalASD.jpg"
+
+# Read the JPEG image
+image_data <- readJPEG(image_path)
+
+# Plot the animated points with the image as background
+p <- ggplot(coronal_asd, aes(x=x, y=y)) +
+  annotation_custom(
+    rasterGrob(image_data, width=unit(1, "npc"), height=unit(1, "npc")),
+    xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf
+  ) +
+  geom_point(aes(size=abs(values), alpha=abs(values)+0.5), color="yellow", shape=15) +
+  labs(x=NULL, y=NULL) +
+  theme_void() +
+  xlim(min_x, max_x) +
+  ylim(min_y, max_y) +
+  theme(legend.position="none")
+
+# Create the animated plot
+animated_plot <- p +
+  transition_time(time_step) +
+  ease_aes("linear")
+
+# Render and play the animation
+animate(animated_plot, width=350, height=350)
+
+
+### sagittal coordinates parameters
+
+dec_factor <- 1.65
+max_x <- max(coordinates$y) * (dec_factor-0.5)
+min_x <- min(coordinates$y) * (dec_factor-0.5)
+max_y <- max(coordinates$z) * (dec_factor)
+min_y <- min(coordinates$z) * (dec_factor)
+
+###################
+### Sagittal TD ###
+###################
+
+sagittal_td  <- data.frame(cbind(x=rep(-coordinates$y, each=ROI_length), y=rep(coordinates$z, each=ROI_length), 
+                    values=mean_td_subject[, 1], time_step=rep(1:ROI_length, N_ROIs)))
+
+# Path to the image file
+image_path <- "sagittalTD.jpg"
+
+# Read the JPEG image
+image_data <- readJPEG(image_path)
+
+# Plot the animated points with the image as background
+p <- ggplot(sagittal_td, aes(x=x-35, y=y)) +
+  annotation_custom(
+    rasterGrob(image_data, width=unit(1, "npc"), height=unit(1, "npc")),
+    xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf
+  ) +
+  geom_point(aes(size=abs(values), alpha=abs(values)+0.5), color="yellow", shape=15) +
+  labs(x=NULL, y=NULL) +
+  theme_void() +
+  xlim(min_x, max_x) +
+  ylim(min_y, max_y) +
+  theme(legend.position="none")
+
+# Create the animated plot
+animated_plot <- p +
+  transition_time(time_step) +
+  ease_aes("linear")
+
+# Render and play the animation
+animate(animated_plot, width=350, height=350)
+
+
+####################
+### Sagittal ASD ###
+####################
+
+sagittal_asd <- data.frame(cbind(x=rep(-coordinates$y, each=ROI_length), y=rep(coordinates$z, each=ROI_length), 
+                    values=mean_asd_subject[, 1], time_step=rep(1:ROI_length, N_ROIs)))
+
+# Path to the image file
+image_path <- "sagittalASD.jpg"
+
+# Read the JPEG image
+image_data <- readJPEG(image_path)
+
+# Plot the animated points with the image as background
+p <- ggplot(sagittal_asd, aes(x=x-35, y=y)) +
+  annotation_custom(
+    rasterGrob(image_data, width=unit(1, "npc"), height=unit(1, "npc")),
+    xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf
+  ) +
+  geom_point(aes(size=abs(values), alpha=abs(values)+0.5), color="yellow", shape=15) +
+  labs(x=NULL, y=NULL) +
+  theme_void() +
+  xlim(min_x, max_x) +
+  ylim(min_y, max_y) +
+  theme(legend.position="none")
+
+# Create the animated plot
+animated_plot <- p +
+  transition_time(time_step) +
+  ease_aes("linear")
+
+# Render and play the animation
+animate(animated_plot, width=350, height=350)
+
+```
+
+</div>
+
+#### Axial view
+
+```{r , eval=FALSE}
+
+axial_td  <- data.frame(cbind(x=rep(coordinates$x, each=ROI_length), y=rep(coordinates$y, each=ROI_length), 
+                    values=mean_td_subject[, 1], time_step=rep(1:ROI_length, N_ROIs)))
+axial_asd <- data.frame(cbind(x=rep(coordinates$x, each=ROI_length), y=rep(coordinates$y, each=ROI_length), 
+                    values=mean_asd_subject[, 1], time_step=rep(1:ROI_length, N_ROIs)))
+
+dec_factor <- 1.65
+max_x <- max(coordinates$x) * (dec_factor+0.15)
+min_x <- min(coordinates$x) * (dec_factor+0.15)
+max_y <- max(coordinates$y) * (dec_factor)
+min_y <- min(coordinates$y) * (dec_factor-0.35)
+
+# Path to the image file
+image_path <- "axialTD.jpg"
+
+# Read the JPEG image
+image_data <- readJPEG(image_path)
+
+# Plot the animated points with the image as background
+p <- ggplot(axial_td, aes(x=x, y=y-10)) +
+  annotation_custom(
+    rasterGrob(image_data, width=unit(1, "npc"), height=unit(1, "npc")),
+    xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf
+  ) +
+  geom_point(aes(size=abs(values), alpha=abs(values)+0.5), color="yellow", shape=15) +
+  labs(x=NULL, y=NULL) +
+  theme_void() +
+  xlim(min_x, max_x) +
+  ylim(min_y, max_y) +
+  theme(legend.position="none")
+
+# Create the animated plot
+animated_plot <- p +
+  transition_time(time_step) +
+  ease_aes("linear")
+
+# Render and play the animation
+animate(animated_plot)
+
+```
+
+#### Coronal view
+
+```{r , eval=FALSE}
+
+coronal_td  <- data.frame(cbind(x=rep(coordinates$x, each=ROI_length), y=rep(coordinates$z, each=ROI_length), 
+                    values=mean_td_subject[, 1], time_step=rep(1:ROI_length, N_ROIs)))
+coronal_asd <- data.frame(cbind(x=rep(coordinates$x, each=ROI_length), y=rep(coordinates$z, each=ROI_length), 
+                    values=mean_asd_subject[, 1], time_step=rep(1:ROI_length, N_ROIs)))
+
+dec_factor <- 1.65
+max_x <- max(coordinates$x) * (dec_factor-0.4)
+min_x <- min(coordinates$x) * (dec_factor-0.4)
+max_y <- max(coordinates$z) * (dec_factor)
+min_y <- min(coordinates$z) * (dec_factor)
+
+# Path to the image file
+image_path <- "coronalTD.jpg"
+
+# Read the JPEG image
+image_data <- readJPEG(image_path)
+
+# Plot the animated points with the image as background
+p <- ggplot(coronal_td, aes(x=x, y=y+15)) +
+  annotation_custom(
+    rasterGrob(image_data, width=unit(1, "npc"), height=unit(1, "npc")),
+    xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf
+  ) +
+  geom_point(aes(size=abs(values), alpha=abs(values)+0.5), color="yellow", shape=15) +
+  labs(x=NULL, y=NULL) +
+  theme_void() +
+  xlim(min_x, max_x) +
+  ylim(min_y, max_y) +
+  theme(legend.position="none")
+
+# Create the animated plot
+animated_plot <- p +
+  transition_time(time_step) +
+  ease_aes("linear")
+
+# Render and play the animation
+animate(animated_plot)
+
+```
+
+#### Sagittal view
+
+```{r , eval=FALSE}
+
+sagittal_td  <- data.frame(cbind(x=rep(-coordinates$y, each=ROI_length), y=rep(coordinates$z, each=ROI_length), 
+                    values=mean_td_subject[, 1], time_step=rep(1:ROI_length, N_ROIs)))
+sagittal_asd <- data.frame(cbind(x=rep(-coordinates$y, each=ROI_length), y=rep(coordinates$z, each=ROI_length), 
+                    values=mean_asd_subject[, 1], time_step=rep(1:ROI_length, N_ROIs)))
+
+dec_factor <- 1.65
+max_x <- max(coordinates$y) * (dec_factor-0.5)
+min_x <- min(coordinates$y) * (dec_factor-0.5)
+max_y <- max(coordinates$z) * (dec_factor)
+min_y <- min(coordinates$z) * (dec_factor)
+
+# Path to the image file
+image_path <- "sagittalTD.jpg"
+
+# Read the JPEG image
+image_data <- readJPEG(image_path)
+
+# Plot the animated points with the image as background
+p <- ggplot(sagittal_td, aes(x=x-35, y=y)) +
+  annotation_custom(
+    rasterGrob(image_data, width=unit(1, "npc"), height=unit(1, "npc")),
+    xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf
+  ) +
+  geom_point(aes(size=abs(values), alpha=abs(values)+0.5), color="yellow", shape=15) +
+  labs(x=NULL, y=NULL) +
+  theme_void() +
+  xlim(min_x, max_x) +
+  ylim(min_y, max_y) +
+  theme(legend.position="none")
+
+# Create the animated plot
+animated_plot <- p +
+  transition_time(time_step) +
+  ease_aes("linear")
+
+# Render and play the animation
+animate(animated_plot)
+```
 
 # Feature extraction
 
@@ -36,10 +442,6 @@ So, let's go more in depth in our feature extraction:
 WHY? Nobody knows.
 
 ```{r}
-train <- read.csv("train_hw03.csv")
-test <- read.csv("test_hw03.csv")
-train$y <- ifelse(train$y=="autism",1,0)
-
 # Number of ROIs
 N_ROIs <- 116
 # Number of realizations
@@ -62,21 +464,30 @@ for (i in 1:(N_ROIs)){
 }
 
 # Calculate correlation coefficients
-mat_corr <- matrix(nrow = 600, ncol = 116*115/2)
+mat_corr <- matrix(nrow = 600, ncol = 116*115/2+1)
 mat_c <- matrix(0,116,116)
 for (j in 1:600){
   # 10 correlation matrices, scaling by 10 
-  l <- lapply(1:10, function(x) cor(mod[[j]][(10*(x-1)+1):(25+10*(x-1)),]))
+  l <- lapply(1:10, function(x) suppressWarnings(cor(mod[[j]][(10*(x-1)+1):(25+10*(x-1)),])))
   mat_c <- apply(simplify2array(l),MARGIN=1:2,median)
-  mat_corr[j,] <- mat_c[lower.tri(mat_c)]
+  mat_corr[j,1:6670] <- mat_c[lower.tri(mat_c)]
 }
-mat_corr <- ifelse(is.na(mat_corr),0,mat_corr)
 
+# Fill with 0 NA values
+mat_corr[,1:6670] <- ifelse(is.na(mat_corr[,1:6670]),0,mat_corr[,1:6670])
+# Add age
+mat_corr[,6671] <- train$age
+
+# Split in two part: they'll be used soon
+D_1 <- mat_corr[1:400,]
+D_2 <- mat_corr[401:600,]
+lab_D_1 <- train$y[1:400]
+lab_D_2 <- train$y[401:600]
 ```
 
 We have a lot of features... Let's cut some useless deadwoods.
 
-LASSO technique is used also in classification. In this case it'll be exploited to find the most relevant features. More in detail, a LASSO model's going to be fitted and in the next analyses only the features take in consideration by this model will be used. We don't know if it makes sense, so we're trying.
+Elastic-net technique is used also in classification. In this case it'll be exploited to find the most relevant features. More in detail, a Elastic-net model's going to be fitted and in the next analyses only the features take in consideration by this model will be used. We don't know if it makes sense, so we're trying.
 
 Observation: to avoid the best training possible (we want remove some columns, no fit the final model), in place of the lambda value comes up by the CV a smaller one will be used.
 
@@ -85,32 +496,29 @@ Observation: to avoid the best training possible (we want remove some columns, n
 mod_pre <- cv.glmnet(mat_corr, train$y, alpha = 1, family = "binomial")
 
 # Don't use the best lambda: 
-lam_pre <- mod_true$lambda.min/2
+lam_pre <- mod_pre$lambda.min/3
 model_pre <- glmnet(mat_corr, train$y, alpha = 1, lambda = lam_pre, family = "binomial")
 
 only_this <- as.numeric(model_pre$beta!=0)
 
-cat("Initial number of features:",dim(mat_corr)[2] ,"\nFinale number of features:",sum(only_this))
+cat("Initial number of features:",dim(mat_corr)[2] ,"\nFinal number of features:",sum(only_this))
 ```
-We had reduced the features from 6670 to 185!
 
 # Find the most important features
 The goal of the homework is to find the features of a dataset which affect a lot the results of the analysis. 
 Now we're going to measure the most important features exploiting a "classical" method: random forest.
 
 ```{r}
-mat_corr <- mat_corr[,only_this]
-
 numWorkers <- detectCores()  
 cl <- makeCluster(numWorkers)
 registerDoParallel(cl)
 
-# Build 200-tree random forest 
-rf <- foreach(ntree=rep(50, numWorkers),
+# Build 400-tree random forest 
+rf <- foreach(ntree=rep(100, numWorkers),
               .combine=randomForest::combine,
               .multicombine=TRUE, 
               .packages='randomForest') %dopar% {
-                randomForest(mat_corr,
+                randomForest(mat_corr[,only_this],
                              factor(train$y, levels = c(0,1)), 
                              ntree = ntree)
               }
@@ -120,13 +528,31 @@ stopCluster(cl)
 # Take the 10 features most important
 first_rf <- order(rf$importance,decreasing = T)[1:10]
 
-print(paste("The train error using random forest is",round(sum(abs(as.numeric(rf$y)-as.numeric(rf$predicted)))/600,3)))
+print(paste("The train error using random forest is (with all the features):",round(sum(abs(as.numeric(rf$y)-as.numeric(rf$predicted)))/600,3)))
+
+numWorkers <- detectCores()  
+cl <- makeCluster(numWorkers)
+registerDoParallel(cl)
+
+# Build 400-tree random forest 
+rf_new <- foreach(ntree=rep(100, numWorkers),
+              .combine=randomForest::combine,
+              .multicombine=TRUE, 
+              .packages='randomForest') %dopar% {
+                randomForest(mat_corr[,only_this][,first_rf],
+                             factor(train$y, levels = c(0,1)), 
+                             ntree = ntree)
+              }
+
+stopCluster(cl)
+
+print(paste("The train error using random forest is (with only the firts ten features):",round(sum(abs(as.numeric(rf_new$y)-as.numeric(rf_new$predicted)))/600,3)))
 ```
 
 Now is the moment of the special guess of the homework: LOCO!!!
 LOCO (leave-one-covariate-out) is an other method to measure the importance of the features. In some sense, it expresses the extra error we'll find removing a feature from the dataset.
 
-We want to compare these results with the results which come up by the random forest results. We want to use LASSO as predictive model.
+We want to compare these results with which come up by the random forest. We want to use LASSO as predictive model. First of all we can calculate the error on a validation set, using only the features selected previously.
 
 ```{r}
 # Take only the survived features 
@@ -134,26 +560,22 @@ D_1_only_this <- D_1[,which(only_this==1,arr.ind=T)]
 D_2_only_this <- D_2[,which(only_this==1,arr.ind=T)]
 
 # Train the model with different lambda values
-mod_OT <- cv.glmnet(D_1_only_this, lab_D_1, alpha = 1, family = "binomial")
-lam_true_OT <- mod_OT$lambda.1se
-model_true_OT <- glmnet(D_1_only_this, lab_D_1, alpha = 1, lambda = lam_true_OT, family = "binomial")
+model_true_OT <- glmnet(D_1_only_this, lab_D_1, alpha = 1, lambda = 0, family = "binomial")
 
 test_err <- sum(abs(as.numeric(predict(model_true_OT,D_2_only_this,type="class"))-lab_D_2))/length(lab_D_2)
 
 cat("The error on the D_2 is:", test_err)
 ```
+A good result, we could stop here though the homework hasn't started yet.
 
 Now we're going to fit the model removing one feature at time and calculate the statistic $\theta$ provide by the referenced paper, using mean squared error loss. We don't use 0-1 loss because it's too harsh and we want to take in consideration the strength of the choices.
-To estimate confidence interval we'll adopt nonparametric bootstrap. Moewover, we're estimating several confidence intervall so using the Bonferroni correction $\widetilde{\alpha}=0.0005$ and $z_{\widetilde{\alpha}/2}=-3.5$.
+To estimate confidence interval we'll adopt nonparametric bootstrap. Moreover, we're estimating several 0.95 confidence intervals so it's necessary using some parameter correction such as the Bonferroni's: $\widetilde{\alpha}=0.0002$ and $z_{\widetilde{\alpha}/2} = -3.5$.
 
 ```{r}
 # Fit all the remove the i-th column
 mod_for <- list()
 for (i in 1:model_pre$df){
-  print(i)
-  mod_f <- cv.glmnet(D_1_only_this[,-i], lab_D_1, alpha = 1, family = "binomial")
-  lam_for <- mod_f$lambda.1se
-  mod_for[[i]] <- glmnet(D_1_only_this[,-i], lab_D_1, alpha = 1, lambda = lam_for, family = "binomial")
+  mod_for[[i]] <- glmnet(D_1_only_this[,-i], lab_D_1, alpha = 1, lambda = 0, family = "binomial")
 }
 
 # Function which we'll use to calculate the confidence intervall
@@ -177,12 +599,12 @@ for (i in 1:model_pre$df){
                  statistic = fun_boot,
                  R = 300,
                  feat = i,
-                 model_true = model_true,
+                 model_true = model_pre,
                  model_j = mod_for[[i]],
                  ncpus = 4)
   s_d <- sd(b[[i]]$t)
   theta[i] <- mean(b[[i]]$t)
-  conf_int[i,] <- c(theta[i]-s_d*3.5/sqrt(100),theta[i]+s_d*3.5/sqrt(100))
+  conf_int[i,] <- c(theta[i]-s_d*3.5/sqrt(200),theta[i]+s_d*3.5/sqrt(200))
 }
 
 first_loco <- order(theta, decreasing=T)[1:10]
@@ -195,7 +617,7 @@ values_rf <- scale(as.numeric(rf$importance),scale = F)
 values_loco <- scale(as.numeric(theta), scale = F)
 
 imp_rf <- data.frame(Method = factor(rep(c("RF", "LOCO"), each=model_pre$df)), 
-                     imp = c(values_rf,values_loco[1:102]))
+                     imp = c(values_rf,values_loco))
 
 ggplot(imp_rf, aes(x=imp, color=Method)) + 
   geom_histogram(fill = "white") +
@@ -209,7 +631,7 @@ ggplot(imp_rf, aes(x=imp, color=Method)) +
 
 ```
 
-These are the histograms of the importance scores, rescaled by the mean (we don't know if these values are comparable in this way, but maybe yes). The RF scores are more close each others, while the LOCO's ones are a bit more widespread. So, as showed by the dashed lines, the scores of the 10-ths features more important for the LOCO are more "evident" as results rather then the RF scores.
+These are the histograms of the importance scores, scaled by the mean (we don't know if these values are comparable in this way, we're trying). The RF scores are closer each other, while the LOCO's ones are a bit more widespread. So, as showed by the dashed lines, the scores of the 10-th feature more important for the LOCO are more "evident" as results rather then the RF scores. 
 
 The plot above is an overall visualization of the scores, it could be more interesting compare the 10-ths features more important for both the methods. 
 As requested, we have to compare the best obtained by random forest with the best obtained with LOCO. 
@@ -235,7 +657,7 @@ tab = data %>%
 tab
 ```
 
-Only two columns are common to both the methods, and generally the values are uncorrelated.
+Only one column is common to both the methods, and generally the values are uncorrelated.
 
 # Reduced to the bone
 
@@ -259,6 +681,7 @@ ggplot(data, aes(x, y, color = col)) +
 
 ```
 
+Look to the above figure: the skier points represent the features which $\theta$'s confidence intervals doesn't contain the 0. Our last prove: let's try to fit LASSO model only with these columns, the most important.
 
 ```{r}
 # Which conf. interval contains the 0
@@ -267,9 +690,7 @@ idx_conf <- which(conf_int[,1]>0, arr.ind = T)
 D_1_final <- D_1_only_this[,idx_conf]
 D_2_final <- D_2_only_this[,idx_conf]
 
-mod_final <- cv.glmnet(D_1_final, lab_D_1, alpha = 1, family = "binomial")
-lam_true_final <- mod_final$lambda.1se
-model_true_final <- glmnet(D_1_final, lab_D_1, alpha = 1, lambda = lam_true_final, family = "binomial")
+model_true_final <- glmnet(D_1_final, lab_D_1, alpha = 1, lambda = 0, family = "binomial")
 
 final_err <- sum(abs(as.numeric(predict(model_true_final,D_2_final,type = "class"))-lab_D_2))/length(lab_D_2)
 
@@ -277,5 +698,5 @@ cat("This is the final error on D_2:", final_err)
 
 ```
 
-This is our final results.
+The less important features aren't irrelevant. No better results... Maybe we just wasted time...
 
