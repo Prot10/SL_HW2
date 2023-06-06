@@ -9,22 +9,273 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r include=FALSE}
+library(doParallel)
+library(boot)
+library(randomForest)
+library(glmnet)
+library(ppcor)
+library(ggplot2)
+library(gt)
+load("data.RData")
 ```
 
-## Including Plots
+# Introduction
+In this homework we'll deal with fRMI, in particular with the Autism Brain Image Data Exchange Project. Our train data are time series of activity associated to 116 distinct ROIs (regions of interest) observed at 115 time instants. We have to keep up some information by this data to classify autism and "normal" brain.
 
-You can also embed plots, for example:
+# Feature extraction
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+The biggest problem we encountered is the data preprocess and feature extraction. By a quik look to the data we find no NA, but the data are very different in scales: there are some patients whose data of the order of unity and other are represented by data of the order of miles.
+Initially we would have liked to rescale or standardize to solve this problem. An other approach, we'd used it, is to go through correlations: in this way, we avoid the problem.
+
+So, let's go more in depth in our feature extraction: 
+1. First of all we have created a matrix for each patient which contains all the data values (row = times, col = ROIs).
+2. We're thinking that 115 realizations are to many to find a good value for the correlation. Trying to solve this problem we want to approximate the correlation coefficients calculating them for the firsts 25 events and then scaling by 10 ones, until the end of the data. So take the element-wise median of these matrices.
+3. Finally, take the lower triangle values: we'll use these in our analysis.
+
+WHY? Nobody knows.
+
+```{r}
+train <- read.csv("train_hw03.csv")
+test <- read.csv("test_hw03.csv")
+train$y <- ifelse(train$y=="autism",1,0)
+
+# Number of ROIs
+N_ROIs <- 116
+# Number of realizations
+ROI_length <- 115
+
+# Build ROIs matrices 
+mod <- list()
+for (i in 1:600){
+  mod[[i]] <- matrix(nrow = ROI_length, ncol = N_ROIs)
+}
+
+# Fill ROIs matrices
+start <- 5
+for (i in 1:(N_ROIs)){
+  sub_set <- train[, start:(start+ROI_length-1)]
+  for (j in 1:600){ 
+    mod[[j]][,i] <- as.numeric(sub_set[j,])
+  }
+  start <- start + ROI_length
+}
+
+# Calculate correlation coefficients
+mat_corr <- matrix(nrow = 600, ncol = 116*115/2)
+mat_c <- matrix(0,116,116)
+for (j in 1:600){
+  # 10 correlation matrices, scaling by 10 
+  l <- lapply(1:10, function(x) cor(mod[[j]][(10*(x-1)+1):(25+10*(x-1)),]))
+  mat_c <- apply(simplify2array(l),MARGIN=1:2,median)
+  mat_corr[j,] <- mat_c[lower.tri(mat_c)]
+}
+mat_corr <- ifelse(is.na(mat_corr),0,mat_corr)
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+We have a lot of features... Let's cut some useless deadwoods.
+
+LASSO technique is used also in classification. In this case it'll be exploited to find the most relevant features. More in detail, a LASSO model's going to be fitted and in the next analyses only the features take in consideration by this model will be used. We don't know if it makes sense, so we're trying.
+
+Observation: to avoid the best training possible (we want remove some columns, no fit the final model), in place of the lambda value comes up by the CV a smaller one will be used.
+
+```{r}
+# Fit the model with different lambda values
+mod_pre <- cv.glmnet(mat_corr, train$y, alpha = 1, family = "binomial")
+
+# Don't use the best lambda: 
+lam_pre <- mod_true$lambda.min/2
+model_pre <- glmnet(mat_corr, train$y, alpha = 1, lambda = lam_pre, family = "binomial")
+
+only_this <- as.numeric(model_pre$beta!=0)
+
+cat("Initial number of features:",dim(mat_corr)[2] ,"\nFinale number of features:",sum(only_this))
+```
+We had reduced the features from 6670 to 185!
+
+# Find the most important features
+The goal of the homework is to find the features of a dataset which affect a lot the results of the analysis. 
+Now we're going to measure the most important features exploiting a "classical" method: random forest.
+
+```{r}
+mat_corr <- mat_corr[,only_this]
+
+numWorkers <- detectCores()  
+cl <- makeCluster(numWorkers)
+registerDoParallel(cl)
+
+# Build 200-tree random forest 
+rf <- foreach(ntree=rep(50, numWorkers),
+              .combine=randomForest::combine,
+              .multicombine=TRUE, 
+              .packages='randomForest') %dopar% {
+                randomForest(mat_corr,
+                             factor(train$y, levels = c(0,1)), 
+                             ntree = ntree)
+              }
+
+stopCluster(cl)
+
+# Take the 10 features most important
+first_rf <- order(rf$importance,decreasing = T)[1:10]
+
+print(paste("The train error using random forest is",round(sum(abs(as.numeric(rf$y)-as.numeric(rf$predicted)))/600,3)))
+```
+
+Now is the moment of the special guess of the homework: LOCO!!!
+LOCO (leave-one-covariate-out) is an other method to measure the importance of the features. In some sense, it expresses the extra error we'll find removing a feature from the dataset.
+
+We want to compare these results with the results which come up by the random forest results. We want to use LASSO as predictive model.
+
+```{r}
+# Take only the survived features 
+D_1_only_this <- D_1[,which(only_this==1,arr.ind=T)]
+D_2_only_this <- D_2[,which(only_this==1,arr.ind=T)]
+
+# Train the model with different lambda values
+mod_OT <- cv.glmnet(D_1_only_this, lab_D_1, alpha = 1, family = "binomial")
+lam_true_OT <- mod_OT$lambda.1se
+model_true_OT <- glmnet(D_1_only_this, lab_D_1, alpha = 1, lambda = lam_true_OT, family = "binomial")
+
+test_err <- sum(abs(as.numeric(predict(model_true_OT,D_2_only_this,type="class"))-lab_D_2))/length(lab_D_2)
+
+cat("The error on the D_2 is:", test_err)
+```
+
+Now we're going to fit the model removing one feature at time and calculate the statistic $\theta$ provide by the referenced paper, using mean squared error loss. We don't use 0-1 loss because it's too harsh and we want to take in consideration the strength of the choices.
+To estimate confidence interval we'll adopt nonparametric bootstrap. Moewover, we're estimating several confidence intervall so using the Bonferroni correction $\widetilde{\alpha}=0.0005$ and $z_{\widetilde{\alpha}/2}=-3.5$.
+
+```{r}
+# Fit all the remove the i-th column
+mod_for <- list()
+for (i in 1:model_pre$df){
+  print(i)
+  mod_f <- cv.glmnet(D_1_only_this[,-i], lab_D_1, alpha = 1, family = "binomial")
+  lam_for <- mod_f$lambda.1se
+  mod_for[[i]] <- glmnet(D_1_only_this[,-i], lab_D_1, alpha = 1, lambda = lam_for, family = "binomial")
+}
+
+# Function which we'll use to calculate the confidence intervall
+fun_boot <- function(data, ind, feat, model_true, model_j){
+  new_data <- data[ind,]
+  true <- predict(model_true_OT, 
+                  new_data,
+                  type = "response")
+  meno_j <- predict(model_j, 
+                    new_data[,-feat], 
+                    type = "response")
+  return(sum((lab_D_2-as.numeric(meno_j))^2)-sum((lab_D_2-as.numeric(true))^2))
+}  
+
+# Estimation of the loss median 
+b <- list()
+theta <- rep(NA,model_pre$df)
+conf_int <- matrix(NA,model_pre$df,2)
+for (i in 1:model_pre$df){
+  b[[i]] <- boot(D_2_only_this,
+                 statistic = fun_boot,
+                 R = 300,
+                 feat = i,
+                 model_true = model_true,
+                 model_j = mod_for[[i]],
+                 ncpus = 4)
+  s_d <- sd(b[[i]]$t)
+  theta[i] <- mean(b[[i]]$t)
+  conf_int[i,] <- c(theta[i]-s_d*3.5/sqrt(100),theta[i]+s_d*3.5/sqrt(100))
+}
+
+first_loco <- order(theta, decreasing=T)[1:10]
+```
+
+How are the importance scores distributed?
+
+```{r}
+values_rf <- scale(as.numeric(rf$importance),scale = F)
+values_loco <- scale(as.numeric(theta), scale = F)
+
+imp_rf <- data.frame(Method = factor(rep(c("RF", "LOCO"), each=model_pre$df)), 
+                     imp = c(values_rf,values_loco[1:102]))
+
+ggplot(imp_rf, aes(x=imp, color=Method)) + 
+  geom_histogram(fill = "white") +
+  labs(x="Importance", 
+       y="Frequence", 
+       title = "Importance scores (random forest)") +
+  geom_vline(aes(xintercept=values_rf[first_rf[10]]),
+            color="blue", linetype="dashed", size=1) +
+  geom_vline(aes(xintercept=values_loco[first_loco[10]]),
+            color="red", linetype="dashed", size=1)
+
+```
+
+These are the histograms of the importance scores, rescaled by the mean (we don't know if these values are comparable in this way, but maybe yes). The RF scores are more close each others, while the LOCO's ones are a bit more widespread. So, as showed by the dashed lines, the scores of the 10-ths features more important for the LOCO are more "evident" as results rather then the RF scores.
+
+The plot above is an overall visualization of the scores, it could be more interesting compare the 10-ths features more important for both the methods. 
+As requested, we have to compare the best obtained by random forest with the best obtained with LOCO. 
+
+```{r}
+data = data.frame(first_rf,
+                  first_loco,
+                  rf_rf = values_rf[first_rf],
+                  rf_theta = values_rf[first_loco],
+                  theta_rf = values_loco[first_rf],
+                  theta_theta = values_loco[first_loco])
+
+tab = data %>%
+  gt() %>%
+   tab_spanner(
+    label = "Best RF",
+    columns = c(first_rf, rf_rf,theta_rf)
+  ) %>% 
+  tab_spanner(
+    label = "Best LOCO",
+    columns = c(first_loco,rf_theta,theta_theta))
+
+tab
+```
+
+Only two columns are common to both the methods, and generally the values are uncorrelated.
+
+# Reduced to the bone
+
+The paper gives us a way to select the best features, through an hypothesis test: in short we should remove all the columns if the relative confident interval contains the 0. It makes sense: it tells us that removing these features we don't account a big additional error.
+Could be very interesting look to the confidence intervals.
+
+```{r}
+data <- round(data.frame(x = 1:model_pre$df,
+                         y = theta[1:model_pre$df],
+                         lower = conf_int[,1],
+                         upper = conf_int[,2],
+                         col = ifelse(conf_int[,1]>0,1,0)), 3)
+ggplot(data, aes(x, y, color = col)) +        
+  geom_point() +
+  geom_errorbar(aes(ymin = lower, ymax = upper)) +
+  labs(x="Features", 
+       y="Theta", 
+       title = "Theta confidence interval") +
+  theme(legend.position='none')
+  
+
+```
+
+
+```{r}
+# Which conf. interval contains the 0
+idx_conf <- which(conf_int[,1]>0, arr.ind = T)
+
+D_1_final <- D_1_only_this[,idx_conf]
+D_2_final <- D_2_only_this[,idx_conf]
+
+mod_final <- cv.glmnet(D_1_final, lab_D_1, alpha = 1, family = "binomial")
+lam_true_final <- mod_final$lambda.1se
+model_true_final <- glmnet(D_1_final, lab_D_1, alpha = 1, lambda = lam_true_final, family = "binomial")
+
+final_err <- sum(abs(as.numeric(predict(model_true_final,D_2_final,type = "class"))-lab_D_2))/length(lab_D_2)
+
+cat("This is the final error on D_2:", final_err)
+
+```
+
+This is our final results.
+

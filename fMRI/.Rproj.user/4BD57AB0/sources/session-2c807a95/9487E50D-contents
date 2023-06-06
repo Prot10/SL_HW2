@@ -1,0 +1,33 @@
+#### Prova correlazioni----
+
+mod <- list()
+
+start <- 5
+
+for (i in 1:600){
+  mod[[i]] <- matrix(nrow = 115, ncol = 116)
+}
+
+for (i in 1:(N_ROIs)){
+  sub_set <- train[, start:(start+ROI_length-1)]
+  for (j in 1:600){ 
+    mod[[j]][,i] <- as.numeric(sub_set[j,])
+  }
+  start <- start + ROI_length
+}
+
+
+
+mat_corr <- matrix(nrow = 600, ncol = 118)
+
+for (j in 1:600){
+  mat_corr[j,1:116] <- apply(abs(cor(mod[[j]])), MARGIN = 1, function(x) {sum(x<0.5)})
+}
+
+mat_corr[,117] <- train$sex
+mat_corr[,118] <- train$age
+
+
+
+
+

@@ -14,33 +14,45 @@ for (i in 1:(N_ROIs)){
   start <- start + ROI_length
 }
 
-mat_corr <- matrix(nrow = 600, ncol = 116)
+
 #mat_corr[,117] <- train$age
 #mat_corr[,118] <- train$sex
+mat_corr <- matrix(nrow = 600, ncol = 116)
 for (j in 1:600){
-  mat_corr[j,1:116] <- apply(abs(cor(mod[[j]])), MARGIN = 2, function(x) {sum(x<0.5)})
-  #mat_corr[j,1:116] <- mat_corr[j,1:116]/sum(mat_corr[j,1:116])*100
+  print(j)
+  mat_corr[j,1:116] <- apply(abs(cor(mod[[j]])), MARGIN = 2, function(x) {quantile(x,probs=0.1,na.rm=T)})
+  #mat_corr[j,1:116] <- mat_corr[j,1:116]/sum(mat_corr[j,1:116])*1000
 }
 to_del <- unique(which(is.na(mat_corr), arr.ind = T)[,1])
-
 mat_corr <- mat_corr[-to_del,]
-labels <- to_categorical(train$y[-to_del])
+#mat_corr <- mat_corr/colMeans(mat_corr)
+# labels <- to_categorical(train$y[-to_del])
 
 mat_nor <- mat_corr[train$y[-to_del]==0,]
 mat_aut <- mat_corr[train$y[-to_del]==1,]
+quantile(mat_aut,probs=c(.1,.2,.3,.4,.5,.6,.7,.8,.9,.999,1))
+quantile(mat_nor,probs=c(.1,.2,.3,.4,.5,.6,.7,.8,.9,.999,1))
 
-hist(mat_aut[,9],freq=F)
-hist(mat_nor[,9], add = T,freq = F)
+ind_nor <- which(mat_nor>80,arr.ind=T)
+sort(table(ind_nor[,2]), decreasing = T)
+
+unique_ind <- unique()
+
+ind_aut <- which(mat_aut>80, arr.ind = T)
+sort(table(ind_aut[,2]), decreasing = T)
+
+hist(mat_nor[,25], freq=F)
+hist(mat_aut[,25], add = T,freq = F)
 
 quan_list <- rep(NA,116)
 
 for (i in 1:116){
-  quan_nor <- quantile(mat_nor[,i], probs = c(0.2,0.8))
-  quan_aut <- quantile(mat_aut[,i], probs = c(0.2,0.8))
+  quan_nor <- quantile(mat_nor[,i], probs = c(0.25,0.75))
+  quan_aut <- quantile(mat_aut[,i], probs = c(0.25,0.75))
   quan_list[i] <- abs(quan_nor[1]-quan_aut[1]) + abs(quan_nor[2]-quan_aut[2])
 }
 
-primi_10 <- order(quan_list, decreasing = T)[1:10]
+primi_20 <- order(quan_list, decreasing = T)[1:20]
 quan_list[primi_10]
 
 ### Ricerca migliori 10
@@ -49,21 +61,26 @@ numWorkers <- detectCores()
 cl <- makeCluster(numWorkers)
 registerDoParallel(cl)
 
-rf <- foreach(ntree=rep(2000, numWorkers),
+rf <- foreach(ntree=rep(200, numWorkers),
               .combine=randomForest::combine,
               .multicombine=TRUE, 
               .packages='randomForest') %dopar% {
-                randomForest(mat_corr[1:400,primi_10],
-                             factor(train$y[-to_del][1:400], levels = c(0,1)), 
+                randomForest(mat_corr[1:400,],
+                             factor(train$y[1:400], levels = c(0,1)), 
                              ntree = ntree)
               }
 
 stopCluster(cl)
 
 sum(abs(as.numeric(rf$y)-as.numeric(rf$predicted)))/400
-sum(abs(as.numeric(predict(rf,mat_corr[401:584,primi_10]))-1-train$y[-to_del][401:584]))/184
+sum(abs(as.numeric(predict(rf,mat_corr[401:584,primi_10]))-1-train$y[401:584]))/184
 
-primi_10 <- order(rf$importance, decreasing = T)[1:10]
+primi_10 <- order(rf$importance, decreasing = T)[1:20]
+
+pred <- as.numeric(predict(rf,mat_corr_test[,primi_10]))-1
+
+df <- data.frame(id = test$id, target = ifelse(pred==1,"autism","control"))
+write.csv(df, file = "prova.csv",row.names = F)
 
 ### Calcola model meno j in primi_10
 

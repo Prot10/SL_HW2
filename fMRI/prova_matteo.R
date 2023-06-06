@@ -11,16 +11,15 @@ mat_corr <- mat_corr[-to_del,]
 
 mat_corr <- cbind(mat_corr,train$sex[-to_del],train$age[-to_del])
 
-
 numWorkers <- detectCores()  
 cl <- makeCluster(numWorkers)
 registerDoParallel(cl)
 
-rf <- foreach(ntree=rep(1000, numWorkers),
+rf <- foreach(ntree=rep(1, numWorkers),
               .combine=randomForest::combine,
               .multicombine=TRUE, 
               .packages='randomForest') %dopar% {
-                randomForest(mat_corr[1:400,],
+                randomForest(mat_corr[1:400,primi],
                              factor(train$y[-to_del][1:400], levels = c(0,1)), 
                              ntree = ntree)
               }
@@ -31,7 +30,7 @@ rf <- randomForest(mat_corr[1:400,primi],
                    factor(train$y[-to_del][1:400], levels = c(0,1)), 
                    ntree = 5000)
 
-#primi <- order(rf$importance, decreasing = T)[1:10]
+primi <- order(rf$importance, decreasing = T)[1:10]
 
 sum(abs(train$y[-to_del][1:400]-as.numeric(predict(rf,mat_corr[1:400,primi]))+1))/400
 
